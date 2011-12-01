@@ -1,6 +1,8 @@
 # Generic functions
 
 import sys, re
+from xml.dom import minidom
+from xml.parsers.expat import ExpatError
 
 def message(message, title = "Warning"): #Show an on-screen message (useful for debugging)
  import xbmcgui
@@ -15,16 +17,28 @@ def message(message, title = "Warning"): #Show an on-screen message (useful for 
 
 def gethtmlpage(url, useragent = "ie9"): #Grab an HTML page
  import urllib2
- sys.stderr.write("Requesting page: %s" % (url))
+ print "Requesting URL: %s" % (url)
  req = urllib2.Request(url)
  newheader = 'Mozilla/5.0 (Windows; U; MSIE 9.0; Windows NT 9.0; en-US)'
  if useragent == "ps3":
   newheader = 'Mozilla/5.0 (PLAYSTATION 3; 3.55)'
  req.add_header('User-agent', newheader)
- response = urllib2.urlopen(req)
- doc = response.read()
- response.close()
- return doc
+ try:
+  response = urllib2.urlopen(req)
+  doc = response.read()
+  response.close()
+  return doc
+ except urllib2.HTTPError, err:
+  print "urllib2.HTTPError requesting URL: %s" % (err.code)
+  pass
+
+def getxmldocument(s):
+ try:
+  document = minidom.parseString(s)
+  if document:
+   return document.documentElement
+ except ExpatError: # Thrown if the content contains just the <xml> tag and no actual content. Some of the TVNZ .xml files are like this :(
+  pass
 
 def unescape(s): #Convert escaped HTML characters back to native unicode, e.g. &gt; to > and &quot; to "
  from htmlentitydefs import name2codepoint

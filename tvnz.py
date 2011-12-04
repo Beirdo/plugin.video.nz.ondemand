@@ -132,38 +132,49 @@ def getShow(show):
 
 def getEpisode(ep):
  info = tools.defaultinfo(0)
- info["TVShowTitle"] = ep.attributes["title"].value
- Title = ep.attributes["sub-title"].value
- if Title <> "":
-  info["Title"] = Title
- else:
-  info["Title"] = ep.attributes["episode"].value
- extra = string.split(ep.attributes["episode"].value,' | ')
- if len(extra) == 3:
-  se = re.search('Series ([0-9]+), Episode ([0-9]+)', extra[0])
+ 
+ title = ep.attributes["title"].value
+ subtitle = ep.attributes["sub-title"].value
+ if len(subtitle) == 0:
+  titleparts = title.split(': ') # Some Extras have the Title and Subtitle put into the title attribute separated by ': '
+  if len(titleparts) == 2:
+   title = titleparts[0]
+   subtitle = titleparts[1]
+
+ season = 0
+ episode = 1
+ episodeparts = string.split(ep.attributes["episode"].value, '|')
+ if len(episodeparts) == 3:
+  se = re.search('Series ([0-9]+), Episode ([0-9]+)', episodeparts[0].strip())
   if se:
-   info["Season"] = int(se.group(1))
-   info["Episode"] = int(se.group(2))
-  else:
-   info["Season"] = 0
-   info["Episode"] = 1
-  info["Date"] = getDate(extra[1])
-  info["Premiered"] = extra[1]
-  info["Duration"] = getDuration(extra[2])
- elif len(extra) == 2:
-  info["Duration"] = getDuration(extra[1])
- elif len(extra) == 1:
-  info["Duration"] = getDuration(extra[0])
+   season = int(se.group(1))
+   episode = int(se.group(2))
+   # Adjust the subtitle to include the season and episode numbers.
+   if len(subtitle):
+    subtitle = str(season) + "x" + str(episode) + " " + subtitle
+   else:
+    subtitle = str(season) + "x" + str(episode)
+  elif len(subtitle) == 0:
+    subtitle = episodeparts[0].strip() # E.g. "Coming Up" or "Catch Up"
+  info["Date"] = getDate(episodeparts[1].strip())
+  info["Premiered"] = episodeparts[1].strip()
+  info["Duration"] = getDuration(episodeparts[2].strip())
+
+ info["TVShowTitle"] = title
+ info["Title"] = subtitle
+ info["Season"]  = season
+ info["Episode"] = episode
+ 
  #channel = ep.attributes["channel"].value
  info["Thumb"] = ep.attributes["src"].value
 
  if len(info["Title"]):
-  label = "%s - \"%s\"" % (info["TVShowTitle"],info["Title"],)
+  label = "%s - \"%s\"" % (info["TVShowTitle"], info["Title"],)
  else:
   label = info["TVShowTitle"]
  info["Title"] = label
  if ep.firstChild:
-  info["Plot"]=ep.firstChild.data
+  info["Plot"] = ep.firstChild.data
  info["FileName"] = "%s?ch=TVNZ&type=video&id=%s&info=%s" % (sys.argv[0], ep.attributes["href"].value, urllib.quote(str(info)))
  return(info)
 

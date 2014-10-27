@@ -14,7 +14,7 @@ class stuff:
   self.urls['base'] = 'http://www.stuff.co.nz'
   self.urls['videos'] = 'videos'
   self.xbmcitems = tools.xbmcItems(self.channel)
-  self.prefetch = self.xbmcitems.booleansetting('%s_prefetch' % self.channel)
+  self.prefetch = self.xbmcitems.booleansetting(self.channel, 'prefetch')
 
 
  def index(self):

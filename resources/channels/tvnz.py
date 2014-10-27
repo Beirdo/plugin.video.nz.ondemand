@@ -46,7 +46,7 @@ class tvnz:
   self.IOS = True
   self.bitrate_min = 400000
   self.xbmcitems = tools.xbmcItems(self.channel)
-  self.prefetch = self.xbmcitems.booleansetting('%s_prefetch' % self.channel)
+  self.prefetch = self.xbmcitems.booleansetting(self.channel, 'prefetch')
 
  def url(self, folder):
   u = self.urls

@@ -14,7 +14,7 @@ class choicetv:
   self.urls['media'] = 'media'
   self.urls['index'] = 'showall'
   self.xbmcitems = tools.xbmcItems(self.channel)
-  self.prefetch = self.xbmcitems.booleansetting('%s_prefetch' % self.channel)
+  self.prefetch = self.xbmcitems.booleansetting(self.channel, 'prefetch')
 
  def index(self, type = 'showall', id = ""):
   page = webpage('/'.join([self.urls['base'], self.urls['media'], type, id]))
@@ -39,14 +39,14 @@ class choicetv:
       else:
        item.info["FileName"] = "%s?ch=%s&type=%s&id=%s" % (self.base, self.channel, link.group(1), link.group(2))
       self.xbmcitems.items.append(item)
-    self.xbmcitems.addall()
+    return self.xbmcitems.addall()
    else:
     sys.stderr.write("index: no programmes")
   else:
    sys.stderr.write("index: no page.doc")
 
  def play(self, id):
-  self.xbmcitems.play(self._geturl(id))
+  return self.xbmcitems.play(self._geturl(id))
 
  def _geturl(self, id):
   page = webpage('/'.join([self.urls['base'], self.urls['media'], 'view', id]))

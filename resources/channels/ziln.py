@@ -16,7 +16,7 @@ class ziln:
   self.urls["rtmp2"] = 'ecast'
   self.urls["rtmp3"] = 'mp4:/ziln'
   self.xbmcitems = tools.xbmcItems(self.channel)
-  self.prefetch = self.xbmcitems.booleansetting('%s_prefetch' % self.channel)
+  self.prefetch = self.xbmcitems.booleansetting(self.channel, 'prefetch')
 
 
  def index(self):
@@ -110,3 +110,4 @@ class ziln:
    soup = BeautifulStoneSoup(page.doc)
    #return "%s%s" % (self.urls['base'], soup.find('media:content')["url"])
    return "%s%s" % (self.urls['base'], urllib.quote(soup.find('media:content')["url"]))
+

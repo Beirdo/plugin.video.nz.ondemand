@@ -36,7 +36,7 @@
 # Import external libraries
 
 import os, cgi, sys, urlparse, urllib
-import xbmcaddon, xbmcgui, xbmcplugin
+#import xbmcaddon, xbmcgui, xbmcplugin
 
 import resources.tools as tools
 import resources.config as config
@@ -52,22 +52,22 @@ def tv3():
  if params.get("channel", "") != "":
   if params.get("cat", "") != "":
    if params["cat"][0] == "shows":
-    tv3.shows(params["channel"][0])
+    return tv3.shows(params["channel"][0])
    elif params["cat"][0] == "show":
-    tv3.show(params["channel"][0], params["title"][0])
+    return tv3.show(params["channel"][0], params["title"][0])
    elif params["cat"][0] == "search":
-    tv3.search(params["channel"][0])
+    return tv3.search(params["channel"][0])
    else:
-    tv3.episodes(params["channel"][0], params["cat"][0])
+    return tv3.episodes(params["channel"][0], params["cat"][0])
   elif params.get("id", "") != "":
-   tv3.play(params["id"][0], params["channel"][0], params["info"][0])
+   return tv3.play(params["id"][0], params["channel"][0], params["info"][0])
   else:
    tv3.channelindex(params["channel"][0])
  else:
-  if config.__settings__.getSetting('TV3_folders') == 'true':
-   tv3.index()
+  if config.__settings__.get('TV3', 'folders') == 'True':
+   return tv3.index()
   else:
-   tv3.index(False)
+   return tv3.index(False)
 
 def tvnz():
  from resources.channels.tvnz import tvnz as tvnzclass
@@ -153,17 +153,17 @@ if params:
   xbmcitems.decode(params["item"][0])
  else:
   if params["ch"][0] == "TV3":
-   tv3()
+   print tv3()
   elif params["ch"][0] == "TVNZ":
-   tvnz()
+   print tvnz()
   elif params["ch"][0] == "ChoiceTV":
-   choicetv()
+   print choicetv()
   elif params["ch"][0] == "Ziln":
-   ziln()
+   print ziln()
   elif params["ch"][0] == "NZOnScreen":
-   nzonscreen()
+   print nzonscreen()
   elif params["ch"][0] == "Stuff":
-   stuff()
+   print stuff()
 # elif params["ch"][0] == "iSKY":
 # https://www.skytv.co.nz/skyid/rest/login?skin=isky
 # POST:
@@ -178,6 +178,7 @@ if params:
   elif params["ch"][0] == "Prime":
    from resources.channels.prime import prime as primeclass
    prime = primeclass()
+   print prime
   else:
    sys.stderr.write("Invalid Channel ID")
 else:
@@ -191,22 +192,21 @@ else:
  channels["Stuff"] = "Stuff covers every aspect of news and information, from breaking national and international crises through to in-depth features, sports, business, entertainment and technology articles, weather reports, travel services, movie reviews, rural news... and lots more."
  xbmcitems = tools.xbmcItems()
  for channel, description in channels.iteritems():
-  if not settings.getSetting('%s_hide' % channel) == "true":
+  if not settings.get(channel, 'hide') == "True":
    item = tools.xbmcItem()
-   item.fanart = os.path.join('extrafanart', "%s.jpg" % channel)
-   item.info["Title"] = channel
-   item.info["Thumb"] = os.path.join(settings.getAddonInfo('path'), "resources/images/%s.png" % channel)
-   item.info["Plot"] = description
-   item.info["FileName"] = "%s?ch=%s" % (sys.argv[0], channel)
+   item['fanart'] = os.path.join('extrafanart', "%s.jpg" % channel)
+   item['videoInfo']["Title"] = channel
+   item['videoInfo']["Thumb"] = os.path.join(config.__path__, "resources/images/%s.png" % channel)
+   item['videoInfo']["Plot"] = description
+   item['videoInfo']["FileName"] = "%s?ch=%s" % (sys.argv[0], channel)
    xbmcitems.items.append(item)
- if not settings.getSetting('Parliament_hide') == "true":
+ if not settings.get('Parliament', 'hide') == "True":
   from resources.channels.parliament import parliament as parliamentclass
   parliament = parliamentclass()
   xbmcitems.items.append(parliament.item())
- if not settings.getSetting('Shine_hide') == "true":
+ if not settings.get('Shine', 'hide') == "True":
   from resources.channels.shine import shine as shineclass
   shine = shineclass()
   xbmcitems.items.append(shine.item())
- xbmcitems.sorting.append('UNSORTED')
- xbmcitems.addall()
+ print xbmcitems.addall()
 

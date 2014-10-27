@@ -14,7 +14,7 @@ class nzonscreen:
   self.urls['base'] = 'http://www.nzonscreen.com'
   self.urls['json'] = '/html5/video_data/'
   self.xbmcitems = tools.xbmcItems(self.channel)
-  self.prefetch = self.xbmcitems.booleansetting('%s_prefetch' % self.channel)
+  self.prefetch = self.xbmcitems.booleansetting(self.channel, 'prefetch')
 
  def url(self, folder):
   u = self.urls

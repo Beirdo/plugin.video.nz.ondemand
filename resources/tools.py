@@ -2,15 +2,19 @@
 
 import sys, re, os
 import resources.config as config
+import logging
+logging.basicConfig(level=logging.DEBUG)
 settings = config.__settings__
 # import xbmc # http://xbmc.sourceforge.net/python-docs/xbmc.html
-import xbmcgui # http://xbmc.sourceforge.net/python-docs/xbmcgui.html
-import xbmcplugin # http://xbmc.sourceforge.net/python-docs/xbmcplugin.html
+#import xbmcgui # http://xbmc.sourceforge.net/python-docs/xbmcgui.html
+#import xbmcplugin # http://xbmc.sourceforge.net/python-docs/xbmcplugin.html
 
 #def initaddon:
 # import shutil, os
 # shutil.rmtree(__cache__)
 # os.mkdir(__cache__)
+
+logger = logging.getLogger(__name__)
 
 class webpage:
  def __init__(self, url = "", agent = 'ps3', cookie = "", type = ""):
@@ -18,13 +22,17 @@ class webpage:
   self.agent = agent
   self.cookie = cookie
   self.type = type
+  self.proxy = "103.16.180.117"
+  self.proxy_port = 443
+  self.socks_port = 465
   if url:
    self.url = url
    self.get(url)
 
  def get(self, url):
   import urllib2
-  opener = urllib2.build_opener()
+  proxy_handler = urllib2.ProxyHandler({'http':'%s:%s'%(self.proxy,self.proxy_port)})
+  opener = urllib2.build_opener(proxy_handler)
   urllib2.install_opener(opener)
   print "Requesting URL: %s" % (url)
   req = urllib2.Request(url)
@@ -72,21 +80,19 @@ class webpage:
 
 
 
-class xbmcItem:
+class xbmcItem(dict):
  def __init__(self):
-  self.path = ""
-  self.info = dict()
-  self.info["Icon"] = "DefaultVideo.png"
-  self.info["Thumb"] = ""
-  self.playable = False
-  self.urls = dict()
-  self.units = "kbps"
-  self.channel = ""
-  self.fanart = ""
+  self['path'] = ""
+  self['videoInfo'] = { 'Icon' : 'DefaultVideo.png', 'Thumb' : '' }
+  self['playable'] = False
+  self['urls'] = dict()
+  self['units'] = "kbps"
+  self['channel'] = ""
+  self['fanart'] = ""
 
  def applyURL(self, bitrate):
-  if bitrate in self.urls:
-   self.info["FileName"] = self.urls[bitrate]
+  if bitrate in self['urls']:
+   self['videoInfo']["FileName"] = self['urls'][bitrate]
 
  def stack(self, urls): #Build a URL stack from multiple URLs for the XBMC player
   if len(urls) == 1:
@@ -96,8 +102,9 @@ class xbmcItem:
   return False
 
  def sxe(self):
-  if 'Season' in self.info and 'Episode' in self.info:
-   return str(self.info["Season"]) + "x" + str(self.info["Episode"]).zfill(2)
+  if 'Season' in self['videoInfo'] and 'Episode' in self['videoInfo']:
+   return str(self['videoInfo']["Season"]) + "x" + \
+          str(self['videoInfo']["Episode"]).zfill(2)
   return False
 
  def unescape(self, s): #Convert escaped HTML characters back to native unicode, e.g. &gt; to > and &quot; to "
@@ -105,13 +112,14 @@ class xbmcItem:
   return re.sub('&(%s);' % '|'.join(name2codepoint), lambda m: unichr(name2codepoint[m.group(1)]), s)
 
  def titleplot(self): #Build a nice title from the program title and sub-title (given as PlotOutline)
-  if self.info['PlotOutline']:
-   self.info['Title'] = "%s - %s" % (self.info['TVShowTitle'], self.info['PlotOutline'])
+  if self['videoInfo']['PlotOutline']:
+   self['videoInfo']['Title'] = "%s - %s" % (self['videoInfo']['TVShowTitle'],
+                                             self['videoInfo']['PlotOutline'])
 
  def url(self, urls = False, quality = 'High'): # Low, Medium, High
   if not urls:
-   urls = self.urls
-  if quality == 'Medium' and len(self.urls) > 2:
+   urls = self['urls']
+  if quality == 'Medium' and len(self['urls']) > 2:
    del urls[max(urls.keys())]
   if quality == 'Low':
    return self.stack(urls[min(urls.keys())])
@@ -122,17 +130,17 @@ class xbmcItem:
   return self._encode(self)
 
  def infoencode(self):
-  return self._encode(self.info)
+  return self._encode(self['videoInfo'])
 
  def _encode(self, toencode):
   import pickle, urllib
   return urllib.quote(pickle.dumps(toencode))
 
  def decode(self, item):
-  self.bitrates(self._decode(item))
+  return self.bitrates(self._decode(item))
 
  def infodecode(self, info):
-  self.info = self._decode(info)
+  self['videoInfo'] = self._decode(info)
 
  def _decode(self, todecode):
   import pickle, urllib
@@ -151,118 +159,111 @@ class xbmcItems:
   self.type = ""
 
  def _listitem(self, item):
-  if hasattr(item, 'info'):
-   listitem = xbmcgui.ListItem(label = item.info["Title"], iconImage = item.info["Icon"], thumbnailImage = item.info["Thumb"])
-   try:
-    listitem.setProperty('fanart_image', os.path.join(settings.getAddonInfo('path'), item.fanart))
-   except:
-    listitem.setProperty('fanart_image', os.path.join(settings.getAddonInfo('path'), self.fanart))
-   listitem.setInfo(type = "video", infoLabels = item.info)
+  if 'videoInfo' in item:
+   info = item['videoInfo']
+   listitem = { 'label' : info["Title"], 'icon' : info["Icon"],
+                'thumbnail' : info["Thumb"]}
+   if 'fanart' in item:
+    listitem['fanart'] = os.path.join(config.__path__, item['fanart'])
+   else:
+    listitem['fanart'] = os.path.join(config.__path__, self.fanart)
+   listitem.update({'type' : "video", 'videoInfo' : info})
    return listitem
   else:
    sys.stderr.write("No Item Info")
+   return {}
 
  def _add(self, item, total = 0): #Add a list item (media file or folder) to the XBMC page
   # http://xbmc.sourceforge.net/python-docs/xbmcgui.html#ListItem
   listitem = self._listitem(item)
   if listitem:
-   if item.channel:
-    channel = item.channel
+   if 'channel' in item:
+    channel = item['channel']
    else:
     channel = self.channel
+   listitem['channel'] = channel
    itemFolder = True
-   if item.playable:
-    if settings.getSetting('%s_quality_choose' % channel) != 'true':
+   if 'playab;e' in item:
+    if settings.get(channel, 'quality_choose') != 'True':
       itemFolder = False
-   if 'FileName' in item.info:
-    if not sys.argv[0] in item.info['FileName']:
+   info = item.get('videoInfo', {})
+   if 'FileName' in info:
+    if not sys.argv[0] in info['FileName']:
      itemFolder = False
    else:
-    if len(item.urls) > 0:
-     if len(item.urls) == 1:
+    if len(item['urls']) > 0:
+     if len(item['urls']) == 1:
       itemFolder = False
-      item.info['FileName'] = item.urls.itervalues().next()
+      info['FileName'] = item['urls'].itervalues().next()
      else:
-      if settings.getSetting('%s_quality_choose' % channel) == 'false':
+      if settings.get(channel, 'quality_choose') == 'False':
        itemFolder = False
-       item.info['FileName'] = self.quality(item.urls, channel)
+       info['FileName'] = self.quality(item['urls'], channel)
       else:
-       item.info['FileName'] = '%s?item=%s' % (sys.argv[0], item.encode())
+       info['FileName'] = '%s?item=%s' % (sys.argv[0], item.encode()) #TODO
    if not itemFolder:
-    listitem.setProperty('mimetype', 'video/x-msvideo')
-    listitem.setProperty("IsPlayable", "true")
-   return xbmcplugin.addDirectoryItem(handle = config.__id__, url = item.info["FileName"], listitem = listitem, isFolder = itemFolder, totalItems = total)
+    listitem['mimetype'] = 'video/x-msvideo'
+    listitem['IsPlayable'] = True
+   return listitem
 
  def addindex(self, index, total = 0):
-  self._add(self, self.items[index], total)
+  return self._add(self, self.items[index], total)
 
  def add(self, total):
-  self._add(self.items[-1], total)
+  return self._add(self.items[-1], total)
 
  def addall(self):
   total = len(self.items)
-  for item in self.items:
-   self._add(item, total)
-  self.sort()
+  return [ self._add(item, total) for item in self.items ]
 
  def resolve(self, item, channel):
-  if settings.getSetting('%s_quality_choose' % channel) == 'true':
+  if settings.get(channel, 'quality_choose') == 'True':
    self.bitrates(item)
   else:
    if 'FileName' in item.info:
-    self.play(item.info['FileName'])
+    return self.play(item['videoInfo']['FileName'])
    else:
-    self.play(self.quality(item.urls, channel))
+    return self.play(self.quality(item['urls'], channel))
 
  def play(self, url):
-  listitem = xbmcgui.ListItem()
-  listitem.setPath(url)
-  listitem.setProperty('mimetype', 'video/x-msvideo')
-  listitem.setProperty('IsPlayable', 'true')
-  try:
-   xbmcplugin.setResolvedUrl(handle = config.__id__, succeeded = True, listitem = listitem)
-  except:
-   pass
-   #self.message("Couldn't play item.")
+  listitem = { 'path' : url, 'mimetype' : 'video/x-msvideo',
+               'IsPlayable' : True }
+  return listitem
 
  def bitrates(self, sourceitem):
-  total = len(sourceitem.urls)
-  for bitrate, url in sourceitem.urls.iteritems():
-   item = xbmcItem()
+  total = len(sourceitem['urls'])
+  for bitrate, url in sourceitem['urls'].iteritems():
+   item = {}
    try:
-    item.fanart = sourceitem.fanart
+    item['fanart'] = sourceitem['fanart']
    except:
     pass
-   item.info = sourceitem.info.copy()
-   item.info['Title'] += " (" + str(bitrate) + " " + sourceitem.units + ")"
-   item.info['FileName'] = url
+   item['videoInfo'] = dict(sourceitem['videoInfo'])
+   item['videoInfo']['Title'] += " (" + str(bitrate) + " " + sourceitem['units'] + ")"
+   item['videoInfo']['FileName'] = url
    #item.urls[bitrate] = (self.stack(url))
    self.items.append(item)
-  self.addall()
+  return self.addall()
 
-  def itemtobitrates(self, item):
-   itemtoitems(decode(item))
+#  def itemtobitrates(self, item):
+#   itemtoitems(decode(item))
 
- def sort(self):
-  import xbmcplugin
-  for method in self.sorting:
-   xbmcplugin.addSortMethod(handle = config.__id__, sortMethod = getattr(xbmcplugin, "SORT_METHOD_" + method))
-   #xbmcplugin.addSortMethod(handle = config.__id__, sortMethod = xbmcplugin.SORT_METHOD_UNSORTED)
-  if self.type:
-   xbmcplugin.setContent(handle = config.__id__, content = self.type)
-  xbmcplugin.endOfDirectory(config.__id__)
+# def sort(self):
+#  import xbmcplugin
+#  for method in self.sorting:
+#   xbmcplugin.addSortMethod(handle = config.__id__, sortMethod = getattr(xbmcplugin, "SORT_METHOD_" + method))
+#   #xbmcplugin.addSortMethod(handle = config.__id__, sortMethod = xbmcplugin.SORT_METHOD_UNSORTED)
+#  if self.type:
+#   xbmcplugin.setContent(handle = config.__id__, content = self.type)
+#  xbmcplugin.endOfDirectory(config.__id__)
 
  def search(self):
-  import xbmc
-  keyboard = xbmc.Keyboard("", "Search for a Video")
-  #keyboard.setHiddenInput(False)
-  keyboard.doModal()
-  if keyboard.isConfirmed():
-   return keyboard.getText()
+  # want to return the parsed arg
+  # TODO
   return False
 
  def quality(self, urls, channel): # Low, Medium, High
-  quality = settings.getSetting('%s_quality' % channel)
+  quality = settings.get(channel, 'quality')
   if quality in ['High', 'Medium', 'Low']:
    if len(urls) > 0:
     if quality == 'Medium' and len(urls) > 2:
@@ -274,14 +275,14 @@ class xbmcItems:
   return self.stack(urls[max(urls.keys())])
 
  def decode(self, item):
-  self.bitrates(self._decode(item))
+  return self.bitrates(self._decode(item))
 
  def _decode(self, todecode):
   import pickle, urllib
   return pickle.loads(urllib.unquote(todecode))
 
  def stack(self, urls): #Build a URL stack from multiple URLs for the XBMC player
-  if str(type(urls)) == "<type 'str'>" or str(type(urls)) == "<type 'unicode'>":
+  if type(urls) is str or type(urls) is unicode:
    return urls
   if len(urls) == 1:
    return urls[0]
@@ -289,21 +290,22 @@ class xbmcItems:
    return "stack://" + " , ".join([url.replace(',', ',,').strip() for url in urls])
   return False
 
- def booleansetting(self, setting):  
-  if settings.getSetting(setting) == 'true':
+ def booleansetting(self, section, setting):  
+  if settings.get(section, setting) == 'True':
    return True
   return False
 
  def message(self, message, title = "Warning"): #Show an on-screen message (useful for debugging)
-  import xbmcgui
-  dialog = xbmcgui.Dialog()
-  if message:
-   if message != "":
-    dialog.ok(title, message)
-   else:
-    dialog.ok("Message", "Empty message text")
-  else:
-   dialog.ok("Message", "No message text")
+#  import xbmcgui
+#  dialog = xbmcgui.Dialog()
+#  if message:
+#   if message != "":
+#    dialog.ok(title, message)
+#   else:
+#    dialog.ok("Message", "Empty message text")
+#  else:
+#   dialog.ok("Message", "No message text")
+  logger.warning(message)
 
  def log(self, message):
   sys.stderr.write(message)

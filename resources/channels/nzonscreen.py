@@ -161,7 +161,7 @@ class nzonscreen:
    synopsisDiv = soup.find("div", attrs={'id' : 'widget_title_synopsis'})
    try:
     synopsis = [ str(item) for item in synopsisDiv.div.p.contents ]
-    metadata['synopsis'] = " ".join(synopsis).strip()
+    metadata['PlotOutline'] = " ".join(synopsis).strip()
    except Exception:
     pass
    metadata['id'] = title

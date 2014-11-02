@@ -8,7 +8,6 @@ from BeautifulSoup import BeautifulSoup, SoupStrainer
 import resources.tools as tools
 import resources.config as config
 settings = config.__settings__
-language = config.__language__
 from resources.tools import webpage
 
 class tv3:
@@ -47,11 +46,10 @@ class tv3:
   self.urls['img_re'] = '\.ondemand\.tv3\.co\.nz/ondemand/AM/'
   self.urls['img_re2'] = '\.ondemand\.tv3\.co\.nz/Portals/0-Articles/'
   self.xbmcitems = tools.xbmcItems(self.channel)
-  self.prefetch = self.xbmcitems.booleansetting(self.channel, 'prefetch')
 
  def index(self, fake = True):
   for folder in self.channels.keys():
-   item = tools.xbmcItem()
+   item = tools.xbmcItem(folder, self.channel)
    item['videoInfo']["Title"] = folder
    item['videoInfo']["FileName"] = "%s?ch=TV3&channel=%s" % (self.base, folder)
    self.xbmcitems.items.append(item)
@@ -59,16 +57,16 @@ class tv3:
 
  def channelindex(self, channel): #Create second level folder for the hierarchy view, only showing items for the selected top level folder
   for category in self.urls['categories']:
-   item = tools.xbmcItem()
+   item = tools.xbmcItem(channel, self.channel)
    item['videoInfo']["Title"] = category
    item['videoInfo']["FileName"] = "%s?ch=TV3&channel=%s&cat=%s" % (self.base, channel, category.replace(" ", ""))
    self.xbmcitems.items.append(item)
-  item = tools.xbmcItem()
-  item['videoInfo']["Title"] = language(30055)
+  item = tools.xbmcItem(channel, self.channel)
+  item['videoInfo']["Title"] = 'Shows'
   item['videoInfo']["FileName"] = "%s?ch=TV3&channel=%s&cat=%s" % (self.base, channel, "shows")
   self.xbmcitems.items.append(item)
-  item = tools.xbmcItem()
-  item['videoInfo']["Title"] = language(30065)
+  item = tools.xbmcItem(channel, self.channel)
+  item['videoInfo']["Title"] = "Search"
   item['videoInfo']["FileName"] = "%s?ch=TV3&channel=%s&cat=%s" % (self.base, channel, "search")
   self.xbmcitems.items.append(item)
   return self.xbmcitems.addall()
@@ -82,7 +80,7 @@ class tv3:
    showsdiv = html_divtag.findAll('div', attrs = {"class": "grid_2"})
    if len(showsdiv) > 0:
     for show in showsdiv:
-     item = tools.xbmcItem()
+     item = tools.xbmcItem(channel, self.channel)
      title = show.find('p').find('a')
      if title:
       if title.string:
@@ -121,18 +119,15 @@ class tv3:
    sys.stderr.write("episodes: Couldn't get videos webpage")
 
  def show(self, channel, title): #Show video items from a TV Show style TV3 webpage
-  #page = webpage("%s/%s/%s" % (self.channels[channel]['base'], self.channels[channel]['shows'], title + ".aspx"))
   page = webpage("%s/%s/%s/%s" % (self.channels[channel]['base'], self.channels[channel]['shows'], title, "TVOnDemand.aspx"))
   if page.doc:
    div_tag = SoupStrainer('div')
    html_divtag = BeautifulSoup(page.doc, parseOnlyThese = div_tag)
    programblock = html_divtag.find(attrs={"class": "grid_8"})
    if programblock:
-    #print programblock
-    programs = programblock.findAll('div', attrs={"class": "grid_4"})
+    programs = programblock.findAll('div', attrs={"class": re.compile(r"\bgrid_4\b")})
     if len(programs) > 0:
      for soup in programs:
-      print soup
       self.xbmcitems.items.append(self._itemshow(channel, title, soup))
      return self.xbmcitems.addall()
    else:
@@ -140,7 +135,7 @@ class tv3:
   else:
    sys.stderr.write("show: Couldn't get index webpage")
 
- def atoz(self, catid, provider): #Show video items from an AtoZ style TV3 webpage
+ def atoz(self, catid, channel): #Show video items from an AtoZ style TV3 webpage
   page = webpage("%s%s%s" % (self._base_url("tv3"), self.urls["cat"], catid))
   if page.doc:
    a_tag=SoupStrainer('div')
@@ -148,7 +143,7 @@ class tv3:
    programs = html_atag.findAll(attrs={"class": "wideArticles"})
    if len(programs) > 0:
     for soup in programs:
-     item = self._itematoz(soup, provider)
+     item = self._itematoz(soup, channel)
      self.xbmcitems.items.append(item)
      if len(item['urls']) > 0:
       if self.prefetch:
@@ -159,7 +154,7 @@ class tv3:
   else:
    sys.stderr.write("atoz: Couldn't get videos webpage")
 
- def search(self):
+ def search(self, channel):
   results = self.xbmcitems.search()
   if results:
    return self._search(results, "58")
@@ -172,17 +167,17 @@ class tv3:
    programs = html_atag.findAll(attrs={"class": "results"})
    if len(programs) > 0:
     for soup in programs:
-     self.xbmcitems.items.append(self._itemsearch(soup, "tv3"))
-     self.xbmcitems.items.append(self._itemsearch(soup, "four"))
+     self.xbmcitems.items.append(self._itemsearch(soup, "TV3"))
+     self.xbmcitems.items.append(self._itemsearch(soup, "Four"))
     return self.xbmcitems.addall()
    else:
     sys.stderr.write("_search: Couldn't find any videos")
   else:
    sys.stderr.write("_search: Couldn't get videos webpage")
 
- def _itemsearch(self, soup, provider): # Scrape items from a table-style HTML page
-  baseurl = self._base_url(provider)
-  item = tools.xbmcItem()
+ def _itemsearch(self, soup, channel): # Scrape items from a table-style HTML page
+  baseurl = self._base_url(channel)
+  item = tools.xbmcItem(channel, self.channel)
   title = soup.find("div", attrs={"class": 'catTitle'})
   if title:
    item['videoInfo']["TVShowTitle"] = title.a.string.strip()
@@ -199,11 +194,8 @@ class tv3:
   #  if date:
   #   sys.stderr.write(date.span[1].string.strip())
     item.titleplot()
-    if self.prefetch:
-     item['urls'] = self._geturls("%s,%s,%s,%s" % (href.group(1), href.group(2), href.group(3), href.group(4)), provider)
-    else:
-     item['playable'] = True
-     item['videoInfo']["FileName"] = "%s?ch=TV3&id=%s&provider=%s&info=%s" % (self.base, "%s,%s,%s,%s" % (href.group(1), href.group(2), href.group(3), href.group(4)), provider, item.infoencode())
+    item['playable'] = True
+    item['videoInfo']["FileName"] = "%s?ch=TV3&id=%s&provider=%s&info=%s" % (self.base, "%s,%s,%s,%s" % (href.group(1), href.group(2), href.group(3), href.group(4)), provider, item.infoencode())
     return item
    else:
     sys.stderr.write("_itemsearch: No href")
@@ -212,7 +204,7 @@ class tv3:
 
  def _itemdiv(self, soup, channel): #Scrape items from a div-style HTML page
   baseurl = self.channels[channel]['base']
-  item = tools.xbmcItem()
+  item = tools.xbmcItem(channel, self.channel)
   #item.info["Studio"] = provider
   link = soup.find("a")
   if link:
@@ -230,11 +222,8 @@ class tv3:
       if se:
        item['videoInfo'].update(self._seasonepisode(se))
       item.titleplot()
-      if self.prefetch:
-       item['urls'] = self._geturls("%s,%s,%s,%s" % (href.group(1), href.group(2), href.group(3), href.group(4)), channel)
-      else:
-       item['playable'] = True
-       item['videoInfo']["FileName"] = "%s?ch=TV3&channel=%s&id=%s&info=%s" % (self.base, channel, "%s,%s,%s,%s" % (href.group(1), href.group(2), href.group(3), href.group(4)), item.infoencode())
+      item['playable'] = True
+      item['videoInfo']["FileName"] = "%s?ch=TV3&channel=%s&id=%s&info=%s" % (self.base, channel, "%s,%s,%s,%s" % (href.group(1), href.group(2), href.group(3), href.group(4)), item.infoencode())
       return item
      else:
       sys.stderr.write("_itemdiv: No title")
@@ -247,62 +236,60 @@ class tv3:
 
  def _itemshow(self, channel, title, soup): #Scrape items from a show-style HTML page
   baseurl = self.channels[channel]['base']
-  item = tools.xbmcItem()
+  item = tools.xbmcItem(channel, self.channel)
   link = soup.find("a")
   if link:
-   print link
    if link.has_key('href'):
-    print link['href']
-    print "%s/(.*?)/%s/([0-9]+)/%s/([0-9]+)/%s/([0-9]+)/" % (baseurl, self.urls["video1"], self.urls["video2"], self.urls["video3"])
     href = re.match("%s/(.*?)/%s/([0-9]+)/%s/([0-9]+)/%s/([0-9]+)/" % (baseurl, self.urls["video1"], self.urls["video2"], self.urls["video3"]), link['href'])
     if href:
+     showname = link.img['alt']
      title = showname.strip()
      if title != "":
-      item.info["TVShowTitle"] = title
+      item['videoInfo']["TVShowTitle"] = title
       image = soup.find("img")
       if image:
-       item.info["Thumb"] = image['src']
+       item['videoInfo']["Thumb"] = image['src']
       se = soup.find("h4")
       if se:
        sea = se.find('a')
        if sea:
-        item.info.update(self._seasonepisode(sea).string.strip())
+        item['videoInfo'].update(self._seasonepisode(sea))
       plot = soup.find("p")
       if plot:
        if plot.string:
-        item.info["PlotOutline"] = plot.string.strip()
+        item['videoInfo']["PlotOutline"] = plot.string.strip()
       item.titleplot()
-      if self.prefetch:
-       item.urls = self._geturls("%s,%s,%s,%s" % (href.group(1), href.group(2), href.group(3), href.group(4)), channel)
-      else:
-       item.playable = True
-       item.info["FileName"] = "%s?ch=TV3&channel=%s&id=%s&info=%s" % (self.base, channel, "%s,%s,%s,%s" % (href.group(1), href.group(2), href.group(3), href.group(4)), item.infoencode())
+      item['playable'] = True
+      showid = "%s,%s,%s,%s" % (href.group(1), href.group(2), href.group(3), href.group(4))
+      item['videoInfo']['id'] = showid
+      item['videoInfo']["FileName"] = "%s?ch=TV3&channel=%s&id=%s&info=%s" % (self.base, channel, showid, item.infoencode())
       return item
     else:
-     sys.stderr.write("_itemshow: No title")
+     #sys.stderr.write("_itemshow: No title")
+     pass
    else:
-    sys.stderr.write("_itemshow: No href")
+    #sys.stderr.write("_itemshow: No href")
+    pass
   else:
-   sys.stderr.write("_itemshow: No link")
+   #sys.stderr.write("_itemshow: No link")
+   pass
+  return {}
 
- def _itemtable(self, soup, provider, title): #Scrape items from a table-style HTML page
-  item = tools.xbmcItem()
+ def _itemtable(self, soup, channel, title): #Scrape items from a table-style HTML page
+  item = tools.xbmcItem(channel, self.channel)
   link = soup.find('a')
   if link:
    if link.string:
     plot = link.string.strip()
     if plot != "":
-     item.info["PlotOutline"] = plot
-     item.info["TVShowTitle"] = title
-     item.info.update(self._seasonepisode(link))
+     item['videoInfo']["PlotOutline"] = plot
+     item['videoInfo']["TVShowTitle"] = title
+     item['videoInfo'].update(self._seasonepisode(link))
      item.titleplot()
      href = re.search("%s/(.*?)/%s/([0-9]+)/%s/([0-9]+)/%s/([0-9]+)/" % (self._base_url("tv3"), self.urls["video1"], self.urls["video2"], self.urls["video3"]), link['href'])
      if href:
-      if self.prefetch:
-       item.urls = self._geturls("%s,%s,%s,%s" % (href.group(1), href.group(2), href.group(3), href.group(4)), provider)
-      else:
-       item.playable = True
-       item.info["FileName"] = "%s?ch=TV3&id=%s&provider=%s&info=%s" % (self.base, "%s,%s,%s,%s" % (href.group(1), href.group(2), href.group(3), href.group(4)), provider, item.infoencode())
+      item.playable = True
+      item['videoInfo']["FileName"] = "%s?ch=TV3&id=%s&provider=%s&info=%s" % (self.base, "%s,%s,%s,%s" % (href.group(1), href.group(2), href.group(3), href.group(4)), provider, item.infoencode())
      return item
     else:
      sys.stderr.write("_itemtable: No plot")
@@ -311,9 +298,9 @@ class tv3:
   else:
    sys.stderr.write("_itemtable: No link")
 
- def _itematoz(self, soup, provider): #Scrape items from an AtoZ-style HTML page
-  baseurl = self._base_url(provider)
-  item = tools.xbmcItem()
+ def _itematoz(self, soup, channel): #Scrape items from an AtoZ-style HTML page
+  baseurl = self._base_url(channel)
+  item = tools.xbmcItem(channel, self.channel)
   if soup.find('h5'):
    link = soup.h5.find("a", attrs={"href": re.compile(baseurl)})
    if link:
@@ -323,23 +310,20 @@ class tv3:
      if link.string:
       title = link.string.strip()
       if title != "":
-       item.info["TVShowTitle"] = title
+       item['videoInfo']["TVShowTitle"] = title
        image = soup.find("img", attrs={"src": re.compile(self.urls["IMG_RE2"]), "title": True})
        if image:
-        item.info["Thumb"] = image['src']
-       item.info.update(self._seasonepisode(soup.contents[4]))
+        item['videoInfo']["Thumb"] = image['src']
+       item['videoInfo'].update(self._seasonepisode(soup.contents[4]))
        item.titleplot()
        plot = soup.find("span", attrs={"class": "lite"})
        if plot.string:
         cleanedplot = plot.string.strip()
         if cleanedplot:
-         item.info["Plot"] = item.unescape(cleanedplot)
-       if self.prefetch:
-        item.urls = self._geturls("%s,%s,%s,%s" % (href.group(1), href.group(2), href.group(3), href.group(4)), channel)
-       else:
-        item.playable = True
-        item.info["FileName"] = "%s?ch=%s&id=%s&provider=%s&info=%s" % (self.base, self.channel, "%s,%s,%s,%s" % (href.group(1), href.group(2), href.group(3), href.group(4)), provider, item.infoencode())
-       if "FileName" in item.info or len(item.urls) > 0:
+         item['videoInfo']["Plot"] = item.unescape(cleanedplot)
+       item.playable = True
+       item['videoInfo']["FileName"] = "%s?ch=%s&id=%s&provider=%s&info=%s" % (self.base, self.channel, "%s,%s,%s,%s" % (href.group(1), href.group(2), href.group(3), href.group(4)), provider, item.infoencode())
+       if "FileName" in item['videoInfo'] or len(item.urls) > 0:
         return item
       else:
        sys.stderr.write("_itematoz: No title")
@@ -353,7 +337,7 @@ class tv3:
    sys.stderr.write("_itematoz: No h5")
 
  def play(self, id, channel, encodedinfo):
-  item = tools.xbmcItem()
+  item = tools.xbmcItem(channel, self.channel)
   item.infodecode(encodedinfo)
   item['fanart'] = self.xbmcitems.fanart
   item['urls'] = self._geturls(id, channel)
@@ -442,7 +426,7 @@ class tv3:
    return info
 
  def _base_url(self, provider): #Build a base website URL for a given site (four or tv3)
-  return "%s.%s.%s" % (self.urls['base1'], provider, self.urls['base2'])
+  return "%s.%s.%s" % (self.urls['base1'], provider.lower(), self.urls['base2'])
 
  def _rtmpchannel(self, provider):
   if provider == "four":

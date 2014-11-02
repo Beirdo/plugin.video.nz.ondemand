@@ -206,13 +206,5 @@ else:
    item['videoInfo']["Plot"] = description
    item['videoInfo']["FileName"] = "%s?ch=%s" % (sys.argv[0], channel)
    xbmcitems.items.append(item)
- if not settings.get('Parliament', 'hide') == "True":
-  from resources.channels.parliament import parliament as parliamentclass
-  parliament = parliamentclass()
-  xbmcitems.items.append(parliament.item())
- if not settings.get('Shine', 'hide') == "True":
-  from resources.channels.shine import shine as shineclass
-  shine = shineclass()
-  xbmcitems.items.append(shine.item())
  print xbmcitems.addall()
 

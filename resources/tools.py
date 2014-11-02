@@ -81,14 +81,20 @@ class webpage:
 
 
 class xbmcItem(dict):
- def __init__(self, channel=None):
+ def __init__(self, station=None, channel=None):
   self['path'] = ""
   self['videoInfo'] = { 'Icon' : 'DefaultVideo.png', 'Thumb' : '' }
   self['playable'] = False
   self['urls'] = dict()
   self['units'] = "kbps"
+  if station:
+   self['station'] = station
+  else:
+   self['station'] = ""
   if channel:
    self['channel'] = channel
+  elif station:
+   self['channel'] = station
   else:
    self['channel'] = ""
   self['fanart'] = ""
@@ -162,7 +168,7 @@ class xbmcItems:
   self.type = ""
 
  def _listitem(self, item):
-  if 'videoInfo' in item:
+  if item and 'videoInfo' in item:
    info = item['videoInfo']
    listitem = { 'label' : info["Title"], 'icon' : info["Icon"],
                 'thumbnail' : info["Thumb"]}
@@ -173,7 +179,7 @@ class xbmcItems:
    listitem.update({'type' : "video", 'videoInfo' : info})
    return listitem
   else:
-   sys.stderr.write("No Item Info")
+   #sys.stderr.write("No Item Info")
    return {}
 
  def _add(self, item, total = 0): #Add a list item (media file or folder) to the XBMC page
@@ -185,13 +191,14 @@ class xbmcItems:
    else:
     channel = self.channel
    listitem['channel'] = channel
+   listitem['station'] = item['station']
    itemFolder = True
-   if 'playable' in item:
-    if settings.get(channel, 'quality_choose') != 'True':
+   if 'playable' in item and item['playable']:
+    if channel and settings.get(channel, 'quality_choose') != 'True':
       itemFolder = False
    info = item.get('videoInfo', {})
    if 'FileName' in info:
-    if not sys.argv[0] in info['FileName']:
+    if not info['FileName'].startswith(sys.argv[0] + '?'):
      itemFolder = False
    else:
     if len(item['urls']) > 0:
@@ -205,7 +212,6 @@ class xbmcItems:
       else:
        info['FileName'] = '%s?item=%s' % (sys.argv[0], item.encode()) #TODO
    if not itemFolder:
-    listitem['mimetype'] = 'video/x-msvideo'
     listitem['IsPlayable'] = True
    return listitem
 
@@ -234,7 +240,12 @@ class xbmcItems:
    urlType = "none"
   elif url.startswith("http://"):
    urlType = "http"
-  listitem = { 'path' : url, 'type' : urlType, 'IsPlayable' : True }
+  elif url.startswith("rtmp"):
+   urlType = "rtmp"
+  pg = webpage()
+  listitem = { 'path' : url, 'type' : urlType, 'IsPlayable' : True, 
+               'proxy' : pg.proxy, 'proxyHttpPort' : pg.proxy_port,
+               'proxySocksPort' : pg.socks_port }
   item.update(listitem)
   if 'urls' in item:
    del item['urls']
@@ -275,7 +286,7 @@ class xbmcItems:
   return False
 
  def quality(self, urls, channel): # Low, Medium, High
-  if len(urls) == 0:
+  if len(urls) == 0 or not channel:
    return False
   quality = settings.get(channel, 'quality')
   if quality in ['High', 'Medium', 'Low']:

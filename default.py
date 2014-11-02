@@ -52,96 +52,102 @@ def tv3():
  if params.get("channel", "") != "":
   if params.get("cat", "") != "":
    if params["cat"][0] == "shows":
-    return tv3.shows(params["channel"][0])
+    ret = tv3.shows(params["channel"][0])
    elif params["cat"][0] == "show":
-    return tv3.show(params["channel"][0], params["title"][0])
+    ret = tv3.show(params["channel"][0], params["title"][0])
    elif params["cat"][0] == "search":
-    return tv3.search(params["channel"][0])
+    ret = tv3.search(params["channel"][0])
    else:
-    return tv3.episodes(params["channel"][0], params["cat"][0])
+    ret = tv3.episodes(params["channel"][0], params["cat"][0])
   elif params.get("id", "") != "":
-   return tv3.play(params["id"][0], params["channel"][0], params["info"][0])
+   ret = tv3.play(params["id"][0], params["channel"][0], params["info"][0])
   else:
-   tv3.channelindex(params["channel"][0])
+   ret = tv3.channelindex(params["channel"][0])
  else:
   if config.__settings__.get('TV3', 'folders') == 'True':
-   return tv3.index()
+   ret = tv3.index()
   else:
-   return tv3.index(False)
+   ret = tv3.index(False)
+ return ret
 
 def tvnz():
  from resources.channels.tvnz import tvnz as tvnzclass
  tvnz = tvnzclass()
  if params.get("info", "") != "":
-  tvnz.play(params["id"][0], params["info"][0])
+  ret = tvnz.play(params["id"][0], params["info"][0])
  elif not "type" in params:
-  tvnz.index()
+  ret = tvnz.index()
  else:
   if params["type"][0] == "shows":
-   tvnz.episodes(params["id"][0])
+   ret = tvnz.episodes(params["id"][0])
   elif params["type"][0] == "singleshow":
-   tvnz.episodes(params["id"][0])
+   ret = tvnz.episodes(params["id"][0])
   elif params["type"][0] == "alphabetical":
-   tvnz.show(params["id"][0])
+   ret = tvnz.show(params["id"][0])
   elif params["type"][0] == "distributor":
    tvnz.SHOW_DISTRIBUTORS(params["id"][0])
-   tools.addsorting(["label"], "tvshows")
+   ret = tools.addsorting(["label"], "tvshows")
   elif params["type"][0] == "search":
-   tvnz.search()
+   ret = tvnz.search()
+ return ret
 
 def choicetv():
  from resources.channels.choicetv import choicetv as choicetvclass
  choicetv = choicetvclass()
  if params.get("type", "") != "":
-  choicetv.index(params["type"][0], params["id"][0])
+  ret = choicetv.index(params["type"][0], params["id"][0])
  elif params.get("view", "") != "":
-  choicetv.play(params["view"][0])
+  ret = choicetv.play(params["view"][0])
  else:
-  choicetv.index()
+  ret = choicetv.index()
+ return ret
 
 def ziln():
  from resources.channels.ziln import ziln as zilnclass
  ziln = zilnclass()
  if params.get("folder", "") != "":
   if params["folder"][0] == "channels":
-   ziln.programmes("channel", "")
+   ret = ziln.programmes("channel", "")
   elif params["folder"][0] == "search":
-   ziln.search()
+   ret = ziln.search()
  elif params.get("channel", "") != "":
-  ziln.programmes("video", params["channel"][0])
+  ret = ziln.programmes("video", params["channel"][0])
  elif params.get("video", "") != "":
-  ziln.play(params["video"][0])
+  ret = ziln.play(params["video"][0])
  else:
-  ziln.index()
+  ret = ziln.index()
+ return ret
 
 def nzonscreen():
  from resources.channels.nzonscreen import nzonscreen as nzonscreenclass
  nzonscreen = nzonscreenclass()
  if params.get("page", "") != "":
-  nzonscreen.page(urllib.unquote(params["filter"][0]), params["page"][0])
+  ret = nzonscreen.page(urllib.unquote(params["filter"][0]), params["page"][0])
  elif params.get("filter", "") != "":
   if params["filter"][0] == "search":
-   nzonscreen.search()
+   ret = nzonscreen.search()
   else:
-   nzonscreen.index(urllib.unquote(params["filter"][0]))
+   ret = nzonscreen.index(urllib.unquote(params["filter"][0]))
  elif params.get("bitrates", "") != "":
-  nzonscreen.bitrates(params["bitrates"][0])
+  ret = nzonscreen.bitrates(params["bitrates"][0])
  elif params.get("title", "") != "":
-  nzonscreen.play(params["title"][0], params["info"][0])
+  ret = nzonscreen.play(params["title"][0], params["info"][0])
  else:
-  nzonscreen.index()
+  ret = nzonscreen.index()
+ return ret
 
 def stuff():
  from resources.channels.stuff import stuff as stuffclass
  stuff = stuffclass()
  if params.get("type", "") != "":
-  stuff.index(params["type"][0], params["id"][0])
+  ret = stuff.index(params["type"][0], params["id"][0])
  elif params.get("id", "") != "":
-  stuff.play(params["section"][0], params["id"][0])
+  ret = stuff.play(params["section"][0], params["id"][0])
  elif params.get("section", "") != "":
-  stuff.sections(params["section"][0])
+  ret = stuff.sections(params["section"][0])
  else:
-  stuff.index()
+  ret = stuff.index()
+ return ret
 
 
 # Decide what to run based on the plugin URL

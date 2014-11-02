@@ -81,13 +81,16 @@ class webpage:
 
 
 class xbmcItem(dict):
- def __init__(self):
+ def __init__(self, channel=None):
   self['path'] = ""
   self['videoInfo'] = { 'Icon' : 'DefaultVideo.png', 'Thumb' : '' }
   self['playable'] = False
   self['urls'] = dict()
   self['units'] = "kbps"
-  self['channel'] = ""
+  if channel:
+   self['channel'] = channel
+  else:
+   self['channel'] = ""
   self['fanart'] = ""
 
  def applyURL(self, bitrate):
@@ -133,8 +136,8 @@ class xbmcItem(dict):
   return self._encode(self['videoInfo'])
 
  def _encode(self, toencode):
-  import pickle, urllib
-  return urllib.quote(pickle.dumps(toencode))
+  import json, urllib
+  return urllib.quote(json.dumps(toencode))
 
  def decode(self, item):
   return self.bitrates(self._decode(item))
@@ -143,8 +146,8 @@ class xbmcItem(dict):
   self['videoInfo'] = self._decode(info)
 
  def _decode(self, todecode):
-  import pickle, urllib
-  return pickle.loads(urllib.unquote(todecode))
+  import json, urllib
+  return json.loads(urllib.unquote(todecode))
 
 
 class xbmcItems:
@@ -177,13 +180,13 @@ class xbmcItems:
   # http://xbmc.sourceforge.net/python-docs/xbmcgui.html#ListItem
   listitem = self._listitem(item)
   if listitem:
-   if 'channel' in item:
+   if 'channel' in item and item['channel']:
     channel = item['channel']
    else:
     channel = self.channel
    listitem['channel'] = channel
    itemFolder = True
-   if 'playab;e' in item:
+   if 'playable' in item:
     if settings.get(channel, 'quality_choose') != 'True':
       itemFolder = False
    info = item.get('videoInfo', {})
@@ -198,7 +201,7 @@ class xbmcItems:
      else:
       if settings.get(channel, 'quality_choose') == 'False':
        itemFolder = False
-       info['FileName'] = self.quality(item['urls'], channel)
+       info['FileName'] = self.quality(item['urls'], self.channel)
       else:
        info['FileName'] = '%s?item=%s' % (sys.argv[0], item.encode()) #TODO
    if not itemFolder:
@@ -220,15 +223,24 @@ class xbmcItems:
   if settings.get(channel, 'quality_choose') == 'True':
    self.bitrates(item)
   else:
-   if 'FileName' in item.info:
-    return self.play(item['videoInfo']['FileName'])
+   if 'FileName' in item['videoInfo']:
+    return self.play(item, item['videoInfo']['FileName'])
    else:
-    return self.play(self.quality(item['urls'], channel))
+    return self.play(item, self.quality(item['urls'], channel))
 
- def play(self, url):
-  listitem = { 'path' : url, 'mimetype' : 'video/x-msvideo',
-               'IsPlayable' : True }
-  return listitem
+ def play(self, item, url):
+  urlType = "unknown"
+  if not url:
+   urlType = "none"
+  elif url.startswith("http://"):
+   urlType = "http"
+  listitem = { 'path' : url, 'type' : urlType, 'IsPlayable' : True }
+  item.update(listitem)
+  if 'urls' in item:
+   del item['urls']
+  if 'units' in item:
+   del item['units']
+  return item
 
  def bitrates(self, sourceitem):
   total = len(sourceitem['urls'])
@@ -263,6 +275,8 @@ class xbmcItems:
   return False
 
  def quality(self, urls, channel): # Low, Medium, High
+  if len(urls) == 0:
+   return False
   quality = settings.get(channel, 'quality')
   if quality in ['High', 'Medium', 'Low']:
    if len(urls) > 0:
@@ -278,8 +292,8 @@ class xbmcItems:
   return self.bitrates(self._decode(item))
 
  def _decode(self, todecode):
-  import pickle, urllib
-  return pickle.loads(urllib.unquote(todecode))
+  import json, urllib
+  return json.loads(urllib.unquote(todecode))
 
  def stack(self, urls): #Build a URL stack from multiple URLs for the XBMC player
   if type(urls) is str or type(urls) is unicode:
@@ -314,8 +328,9 @@ class xbmcItems:
 
 
 def xbmcdate(inputdate, separator = "/"): #Convert a date in "%d/%m/%y" format to an XBMC friendly format
- import time, xbmc
- return time.strftime(xbmc.getRegion("datelong").replace("DDDD,", "").replace("MMMM", "%B").replace("D", "%d").replace("YYYY", "%Y").strip(), time.strptime(inputdate, "%d" + separator + "%m" + separator + "%y"))
+ return inputdate
+ #import time, xbmc
+ #return time.strftime(xbmc.getRegion("datelong").replace("DDDD,", "").replace("MMMM", "%B").replace("D", "%d").replace("YYYY", "%Y").strip(), time.strptime(inputdate, "%d" + separator + "%m" + separator + "%y"))
 
 
 

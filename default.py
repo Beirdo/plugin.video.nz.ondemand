@@ -91,16 +91,18 @@ def tvnz():
    ret = tvnz.search()
  return ret
 
-def choicetv():
- from resources.channels.choicetv import choicetv as choicetvclass
- choicetv = choicetvclass()
- if params.get("type", "") != "":
-  ret = choicetv.index(params["type"][0], params["id"][0])
- elif params.get("view", "") != "":
-  ret = choicetv.play(params["view"][0])
- else:
-  ret = choicetv.index()
- return ret
+# Website states "new website coming soon as of 11/2/2014
+#
+#def choicetv():
+# from resources.channels.choicetv import choicetv as choicetvclass
+# choicetv = choicetvclass()
+# if params.get("type", "") != "":
+#  ret = choicetv.index(params["type"][0], params["id"][0])
+# elif params.get("view", "") != "":
+#  ret = choicetv.play(params["view"][0])
+# else:
+#  ret = choicetv.index()
+# return ret
 
 def ziln():
  from resources.channels.ziln import ziln as zilnclass
@@ -162,8 +164,8 @@ if params:
    print tv3()
   elif params["ch"][0] == "TVNZ":
    print tvnz()
-  elif params["ch"][0] == "ChoiceTV":
-   print choicetv()
+#  elif params["ch"][0] == "ChoiceTV":
+#   print choicetv()
   elif params["ch"][0] == "Ziln":
    print ziln()
   elif params["ch"][0] == "NZOnScreen":
@@ -194,7 +196,7 @@ else:
  channels["Prime"] = "Prime News: First At 5:30 brings you the top news and sports stories from New Zealand and around the world."
  channels["NZOnScreen"] = "The online showcase of New Zealand television, film and music video."
  channels["Ziln"] = "Ziln links the audience reach of broadband internet with a potentially limitless amount of targetted live streaming and View On Demand TV/video content."
- channels["ChoiceTV"] = "Choice TV's programming centres on entertainment, information and lifestyle content from around the world."
+# channels["ChoiceTV"] = "Choice TV's programming centres on entertainment, information and lifestyle content from around the world."
  channels["Stuff"] = "Stuff covers every aspect of news and information, from breaking national and international crises through to in-depth features, sports, business, entertainment and technology articles, weather reports, travel services, movie reviews, rural news... and lots more."
  xbmcitems = tools.xbmcItems()
  for channel, description in channels.iteritems():

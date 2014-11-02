@@ -5,6 +5,7 @@ import resources.tools as tools
 import resources.config as config
 settings = config.__settings__
 from resources.tools import webpage
+from xml.dom import minidom
 
 class stuff:
  def __init__(self):
@@ -16,6 +17,17 @@ class stuff:
   self.xbmcitems = tools.xbmcItems(self.channel)
   self.prefetch = self.xbmcitems.booleansetting(self.channel, 'prefetch')
 
+ def _xml(self, doc):
+  try:
+   document = minidom.parseString(doc)
+  except:
+   pass
+  else:
+   if document:
+    return document.documentElement
+  sys.stderr.write("No XML Data")
+  return False
+
 
  def index(self):
   page = webpage(self.urls['base'])
@@ -26,11 +38,11 @@ class stuff:
    if menu:
     menuitems = menu.findAll('a')
     for menuitem in menuitems:
-     item = tools.xbmcItem()
-     item.info["Title"] = menuitem.string
-     item.info["FileName"] = "%s?ch=%s&section=%s" % (self.base, self.channel, menuitem["href"][1:-1])
+     item = tools.xbmcItem(self.channel)
+     item['videoInfo']["Title"] = menuitem.string
+     item['videoInfo']["FileName"] = "%s?ch=%s&section=%s" % (self.base, self.channel, menuitem["href"][1:-1])
      self.xbmcitems.items.append(item)
-    self.xbmcitems.addall()
+    return self.xbmcitems.addall()
    else:
     sys.stderr.write("index: no menu")
   else:
@@ -50,21 +62,21 @@ class stuff:
       link = video.find("a")
       if link:
        if link.string:
-        item = tools.xbmcItem()
+        item = tools.xbmcItem(self.channel)
         link = video.find("a")
-        item.info["Title"] = link.string.strip()
+        item['videoInfo']["Title"] = link.string.strip()
         image = video.find("img")
         if image:
-         item.info["Thumb"] = image['src']
+         item['videoInfo']["Thumb"] = image['src']
         videoid = re.match('/%s/%s/([0-9]+)/' % (section, self.urls['videos']), link['href'])
         if videoid:
          if self.prefetch:
           item.urls = [self._geturl(section, videoid)]
          else:
           item.playable = True
-          item.info["FileName"] = "%s?ch=%s&section=%s&id=%s" % (self.base, self.channel, section, videoid.group(1))
+          item['videoInfo']["FileName"] = "%s?ch=%s&section=%s&id=%s" % (self.base, self.channel, section, videoid.group(1))
          self.xbmcitems.items.append(item)
-     self.xbmcitems.addall()
+     return self.xbmcitems.addall()
     else:
      sys.stderr.write("sections: no videos")
    else:
@@ -73,7 +85,13 @@ class stuff:
    sys.stderr.write("sections: no page.doc")
 
  def play(self, section, id):
-  self.xbmcitems.play(self._geturl(section, id))
+  item = tools.xbmcItem(self.channel)
+  item['id'] = id
+  item['playable'] = True
+  item['videoInfo'].update(self._getMetadata(section, id))
+  url = item['videoInfo'].pop('url')
+
+  return self.xbmcitems.play(item, url)
 
  def _geturl(self, section, id):
   page = webpage("/".join((self.urls['base'], section, self.urls['videos'], id)))
@@ -81,3 +99,33 @@ class stuff:
    videourl = re.search('{file: "(http://(.*?).mp4)"}', page.doc)
    if videourl:
     return videourl.group(1)
+
+ def _getMetadata(self, section, id):
+  metadata = {}
+  page = webpage("/".join((self.urls['base'], section, self.urls['videos'], id)))
+  if page.doc:
+   soup = BeautifulSoup(page.doc)
+   description = soup.find('meta', attrs={"name" : "description"})['content']
+
+   thumbnail = soup.find('link', attrs={'rel' : 'image_src'})['href']
+   videosrc = soup.find('link', attrs={'rel' : 'video_src'})['href']
+   match = re.search(r'mediaXML=(.*?)(?:&amp;|$)', videosrc)
+   if match:
+    xmlfile = match.group(1)
+   else:
+    xmlfile = None
+
+   metadata['Plot'] = description
+   metadata['thumbnail'] = thumbnail
+
+   if xmlfile:
+    xmlpage = webpage(xmlfile)
+    if xmlpage:
+     xmldom = self._xml(xmlpage.doc)
+     title = xmldom.getElementsByTagName('title')[0].firstChild.nodeValue
+     url = xmldom.getElementsByTagName('media:content')[0].getAttribute('url')
+     metadata['Title'] = title
+     metadata['url'] = url
+
+  return metadata
+

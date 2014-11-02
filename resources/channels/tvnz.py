@@ -46,7 +46,6 @@ class tvnz:
   self.IOS = True
   self.bitrate_min = 400000
   self.xbmcitems = tools.xbmcItems(self.channel)
-  self.prefetch = self.xbmcitems.booleansetting(self.channel, 'prefetch')
 
  def url(self, folder):
   u = self.urls
@@ -72,19 +71,19 @@ class tvnz:
     if type in ('shows', 'alphabetical'): #, 'distributor'
      m = re.search('/([0-9]+)/',stat.attributes["href"].value)
      if m:
-      item = tools.xbmcItem()
-      info = item.info
+      item = tools.xbmcItem(self.channel)
+      info = item['videoInfo']
       info["Title"] = stat.attributes["title"].value
       info["FileName"] = "%s?ch=%s&type=%s&id=%s" % (self.base, self.channel, type, m.group(1))
       self.xbmcitems.items.append(item)
-   item = tools.xbmcItem() # Search
-   info = item.info
+   item = tools.xbmcItem(self.channel) # Search
+   info = item['videoInfo']
    info["Title"] = "Search"
    info["FileName"] = "%s?ch=TVNZ&type=%s" % (self.base, "search")
    self.xbmcitems.items.append(item)
   else:
    sys.stderr.write("No XML Data")
-  self.xbmcitems.addall()
+  return self.xbmcitems.addall()
 
  def show(self, id, search = False):
   if search:
@@ -102,8 +101,8 @@ class tvnz:
       #videos = int(show.attributes["videos"].value) # Number of Extras
 	  #episodes = int(show.attributes["episodes"].value) # Number of Episodes
       #channel = show.attributes["channel"].value
-      item = tools.xbmcItem()
-      info = item.info
+      item = tools.xbmcItem(self.channel)
+      info = item['videoInfo']
       info["FileName"] = "%s?ch=%s&type=singleshow&id=%s%s" % (self.base, self.channel, se.group(1), self.urls['episodes'])
       info["Title"] = show.attributes["title"].value
       info["TVShowTitle"] = info["Title"]
@@ -112,7 +111,7 @@ class tvnz:
       # info = dict(epinfo.items() + info.items())
       self.xbmcitems.items.append(item)
   #self.xbmcitems.type = "tvshows"
-  self.xbmcitems.addall()
+  return self.xbmcitems.addall()
 
  def search(self):
   results = self.xbmcitems.search()
@@ -131,8 +130,6 @@ class tvnz:
      item = self._episode(ep)
      if item:
       self.xbmcitems.items.append(item)
-      if self.prefetch:
-       self.xbmcitems.add(count)
     for ep in xml.getElementsByTagName('Extras'):
      item = self._episode(ep)
      if item:
@@ -140,10 +137,7 @@ class tvnz:
     #self.xbmcitems.sorting.append("DATE")
     #self.xbmcitems.type = "episodes"
     #self.xbmcitems.addall()
-    if self.prefetch:
-     self.xbmcitems.sort()
-    else:
-     self.xbmcitems.addall()
+    return self.xbmcitems.addall()
 
 
  def firstepisode(self, id):
@@ -153,17 +147,17 @@ class tvnz:
    if xml:
     item = self._episode(xml.getElementsByTagName('Episode')[0])
     if item:
-     return item.info
+     return item['videoInfo']
   return False
 
  def _episode(self, ep):
   #se = re.search('/([0-9]+)/', ep.attributes["href"].value)
   se = re.search('([0-9]+)', ep.attributes["href"].value)
   if se:
-   item = tools.xbmcItem()
+   item = tools.xbmcItem(self.channel)
    link = se.group(1)
    if ep.firstChild:
-    item.info["Plot"] = ep.firstChild.data.strip()
+    item['videoInfo']["Plot"] = ep.firstChild.data.strip()
    title = ep.attributes["title"].value
    subtitle = ep.attributes["sub-title"].value
    if not subtitle:
@@ -178,35 +172,32 @@ class tvnz:
     see = re.search('(?P<s>Se(ries|ason) ([0-9]+), )?Episodes? (?P<e>[0-9]+)(-(?P<e2>[0-9]+))?', episodeparts[0].strip())
     if see:
      try:
-      item.info["Season"]  = int(see.group("s"))
+      item['videoInfo']["Season"]  = int(see.group("s"))
      except:
-      item.info["Season"] = 1
-     item.info["Episode"] = int(see.group("e"))
+      item['videoInfo']["Season"] = 1
+     item['videoInfo']["Episode"] = int(see.group("e"))
     sxe = item.sxe()
     if not sxe:
       sxe = episodeparts[0].strip() # E.g. "Coming Up" or "Catch Up"
     date = self._date(episodeparts[1].strip())
     if date:
-     item.info["Date"] = date
-    item.info["Premiered"] = episodeparts[1].strip()
-    item.info["Duration"] = self._duration(episodeparts[2].strip())
-   item.info["TVShowTitle"] = title
-   item.info["Title"] = " ".join((title, sxe, subtitle)) #subtitle
-   item.info["Thumb"] = ep.attributes["src"].value
-   if self.prefetch:
-    item.urls = self._geturls(link, item.info["Thumb"])
-   else:
-    item.playable = True
-    item.info["FileName"] = "%s?ch=%s&id=%s&info=%s" % (self.base, self.channel, link, item.infoencode())
+     item['videoInfo']["Date"] = date
+    item['videoInfo']["Premiered"] = episodeparts[1].strip()
+    item['videoInfo']["Duration"] = self._duration(episodeparts[2].strip())
+   item['videoInfo']["TVShowTitle"] = title
+   item['videoInfo']["Title"] = " ".join((title, sxe, subtitle)) #subtitle
+   item['videoInfo']["Thumb"] = ep.attributes["src"].value
+   item['playable'] = True
+   item['videoInfo']["FileName"] = "%s?ch=%s&id=%s&info=%s" % (self.base, self.channel, link, item.infoencode())
    return item
   else:
    sys.stderr.write("_episode: No se")
 
  def play(self, id, encodedinfo):
-  item = tools.xbmcItem()
+  item = tools.xbmcItem(self.channel)
   item.infodecode(encodedinfo)
   item.fanart = self.xbmcitems.fanart
-  item.urls = self._geturls(id, item.info["Thumb"])
+  item.urls = self._geturls(id, item['videoInfo']["Thumb"])
   self.xbmcitems.resolve(item, self.channel)
 
  def _geturls(self, id, thumb):
@@ -222,7 +213,7 @@ class tvnz:
   else:
    #url = '%s/%s/%s' % (self.urls['base'], self.urls['content'], str(id) + '.xhtml')
    print thumb
-   urlinfo = re.search('http://images.tvnz.co.nz/tvnz_images/(.*?)/[0-9]+/[0-9]+/(.*?)_E3.jpg', thumb)
+   urlinfo = re.search('http://images.tvnz.co.nz/tvnz_(?:site_)?images/(.*?)/[0-9]+/[0-9]+/(.*?)(?:_E3)?.jpg', thumb)
    if urlinfo:
     url = '%s/%s/%s' % (self.urls['base'], urlinfo.group(1).replace("_", "-"), urlinfo.group(2)[len(urlinfo.group(1)) + 1:].replace("_", "-") + "-video-" + id)
     print url
@@ -261,8 +252,8 @@ class tvnz:
   viewer_exp_req = ViewerExperienceRequest(url, [ContentOverride(contentID)], self.urls['experienceID'], "")
   env = remoting.Envelope(amfVersion = 3)
   env.bodies.append(("/1",  remoting.Request(target = "com.brightcove.experience.ExperienceRuntimeFacade.getDataForExperience", body = [self.urls['const'], viewer_exp_req], envelope = env)))
-  #conn.request("POST", "/services/messagebroker/amf?playerKey=" + self.urls['playerKey'], str(remoting.encode(env).read()), {'content-type': 'application/x-amf'})
-  conn.request("POST", "/services/messagebroker/amf?playerId=" + self.urls['playerID'], str(remoting.encode(env).read()), {'content-type': 'application/x-amf'})
+  conn.request("POST", "/services/messagebroker/amf?playerKey=" + self.urls['playerKey'], str(remoting.encode(env).read()), {'content-type': 'application/x-amf'})
+  #conn.request("POST", "/services/messagebroker/amf?playerId=" + self.urls['playerID'], str(remoting.encode(env).read()), {'content-type': 'application/x-amf'})
   resp = conn.getresponse().read()
   response = remoting.decode(resp).bodies[0][1].body
   self._printResponse(env, response)

@@ -7,6 +7,18 @@ settings = config.__settings__
 from resources.tools import webpage
 from xml.dom import minidom
 
+channelMap = { 54: '7', 4: 'AirsideTV', 43: 'AoTV', 49: 'Bush Telly',
+               40: 'Cool Science', 48: 'Crown Music', 12: 'FishnHunt.TV',
+               17: 'G Star TV', 58: 'Home Show TV', 63: 'Hunt Fish 123',
+               25: 'Indie Doco Channel', 14: 'Laugh TV', 38: 'Lesson TV',
+               41: 'no8.co.nz', 24: 'NZ 2012 TV', 62: 'NZ Country Music',
+               23: 'NZ Memories On TV', 46: 'nzheraldtv', 29: 'Open Mic',
+               13: 'Outdoor Country TV', 20: 'PonsonbyTV', 39: 'SMNZTV',
+               15: 'Tempo Dance TV', 8: 'The Odeon', 9: 'Trends TV',
+               56: 'Unscrewed', 19: 'Wild Welly', 18: 'Zilenh HD Lab',
+               35: 'Ziln Money', 53: 'Ziln Motor TV', 27: 'Ziln Music',
+               51: 'Ziln Real Estate', 37: 'Ziln Sport' }
+
 class ziln:
  def __init__(self):
   self.base = sys.argv[0]
@@ -74,6 +86,8 @@ class ziln:
           index = re.search("assets/images/%ss/([0-9]*?)-mini.jpg" % type, link.img["src"]).group(1)
           item['videoInfo']["FileName"] = "%s?ch=%s&%s=%s" % (self.base, self.channel, type, urllib.quote(index))
           if type == "video":
+           filename = item['videoInfo']['FileName']
+           item['videoInfo']['FileName'] = "%s&channelNum=%s" % (filename, urlext)
            item['playable'] = True
           self.xbmcitems.items.append(item)
        else:
@@ -90,8 +104,9 @@ class ziln:
   if results:
    return self.programmes("search", results)
 
- def play(self, index):
-  item = tools.xbmcItem(self.channel)
+ def play(self, index, channelNum):
+  channel = channelMap.get(int(channelNum), "Ziln")
+  item = tools.xbmcItem(channel, self.channel)
   item['playable'] = True
   item['videoInfo'].update(self._getMetadata(index))
   item['urls'] = item['videoInfo'].pop('urls')

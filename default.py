@@ -115,7 +115,7 @@ def ziln():
  elif params.get("channel", "") != "":
   ret = ziln.programmes("video", params["channel"][0])
  elif params.get("video", "") != "":
-  ret = ziln.play(params["video"][0])
+  ret = ziln.play(params["video"][0], params["channelNum"][0])
  else:
   ret = ziln.index()
  return ret

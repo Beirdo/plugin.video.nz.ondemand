@@ -5,6 +5,7 @@ import resources.tools as tools
 import resources.config as config
 settings = config.__settings__
 from resources.tools import webpage
+from xml.dom import minidom
 
 class ziln:
  def __init__(self):
@@ -16,24 +17,20 @@ class ziln:
   self.urls["rtmp2"] = 'ecast'
   self.urls["rtmp3"] = 'mp4:/ziln'
   self.xbmcitems = tools.xbmcItems(self.channel)
-  self.prefetch = self.xbmcitems.booleansetting(self.channel, 'prefetch')
-
 
  def index(self):
-  item = tools.xbmcItem()
-  info = item.info
-  info["Title"] = config.__language__(30053)
-  info["Count"] = 1
+  item = tools.xbmcItem(self.channel)
+  info = item['videoInfo']
+  info["Title"] = "Channels"
   info["FileName"] = "%s?ch=Ziln&folder=channels" % sys.argv[0]
   self.xbmcitems.items.append(item)
-  item = tools.xbmcItem()
-  info = item.info
-  info["Title"] = config.__language__(30065)
-  info["Count"] = 2
+  item = tools.xbmcItem(self.channel)
+  info = item['videoInfo']
+  info["Title"] = "Search"
   info["Thumb"] = "DefaultVideoPlaylists.png"
   info["FileName"] = "%s?ch=Ziln&folder=search" % sys.argv[0]
   self.xbmcitems.items.append(item)
-  self.xbmcitems.addall()
+  return self.xbmcitems.addall()
 
  def programmes(self, type, urlext):
   if type == "channel":
@@ -68,27 +65,19 @@ class ziln:
         link = listitem.find('a', attrs={'href' : re.compile("^/%s/" % type)})
         if link.img:
          if re.search("assets/images/%ss/" % type, link.img["src"]):
-          #item = tools.xbmcItem()
-          item = tools.xbmcItem()
+          item = tools.xbmcItem(self.channel)
           if listitem.p.string:
-           item.info["Title"] = listitem.p.string.strip()
+           item['videoInfo']["Title"] = listitem.p.string.strip()
           else:
-           item.info["Title"] = link.img["alt"]
-          item.info["Thumb"] = "%s/%s" % (self.urls['base'], link.img["src"])
+           item['videoInfo']["Title"] = link.img["alt"]
+          item['videoInfo']["Thumb"] = "%s/%s" % (self.urls['base'], link.img["src"])
           index = re.search("assets/images/%ss/([0-9]*?)-mini.jpg" % type, link.img["src"]).group(1)
-          item.info["FileName"] = "%s?ch=%s&%s=%s" % (self.base, self.channel, type, urllib.quote(index))
+          item['videoInfo']["FileName"] = "%s?ch=%s&%s=%s" % (self.base, self.channel, type, urllib.quote(index))
           if type == "video":
-           if self.prefetch:
-            item.info["FileName"] = self._geturl(index)
-           else:
-            item.playable = True
+           item['playable'] = True
           self.xbmcitems.items.append(item)
-          if self.prefetch:
-           self.xbmcitems.add(count)
-       if self.prefetch:
-        self.xbmcitems.sort()
        else:
-        self.xbmcitems.addall()
+        return self.xbmcitems.addall()
      else:
       sys.stderr.write("Search returned no results")
    else:
@@ -99,15 +88,50 @@ class ziln:
  def search(self):
   results = self.xbmcitems.search()
   if results:
-   self.programmes("search", results)
+   return self.programmes("search", results)
 
  def play(self, index):
-  self.xbmcitems.play(self._geturl(index))
+  item = tools.xbmcItem(self.channel)
+  item['playable'] = True
+  item['videoInfo'].update(self._getMetadata(index))
+  item['urls'] = item['videoInfo'].pop('urls')
+  return self.xbmcitems.resolve(item, self.channel)
 
- def _geturl(self, index):
+ def _getMetadata(self, index):
+  metadata = {}
   page = webpage("%s/playlist/null/%s" % (self.urls['base'], index))
   if page.doc:
-   soup = BeautifulStoneSoup(page.doc)
-   #return "%s%s" % (self.urls['base'], soup.find('media:content')["url"])
-   return "%s%s" % (self.urls['base'], urllib.quote(soup.find('media:content')["url"]))
+   metadata['id'] = index
+   xmldom = self._xml(page.doc)
+   if not xmldom:
+    return {}
+   metadata['Title'] = xmldom.getElementsByTagName('title')[0].firstChild.data.strip()
+   metadata['Plot'] = xmldom.getElementsByTagName('description')[0].firstChild.data.strip()
+   metadata['Thumb'] = xmldom.getElementsByTagName('jwplayer:image')[0].firstChild.nodeValue
+   if not metadata['Thumb'].startswith("http://"):
+    metadata['Thumb'] = self.urls['base'] + metadata['Thumb']
+   srcUrls = xmldom.getElementsByTagName('jwplayer:source')
+   urls = {}
+   for srcUrl in srcUrls:
+    url = srcUrl.getAttribute('file')
+    if not url.startswith("http://"):
+     url = self.urls['base'] + url
+    # in format 720p or 540p
+    size = srcUrl.getAttribute('label')
+    size = int(size[:-1])
+    urls[size] = url
+   metadata['urls'] = urls
+   return metadata
+
+ def _xml(self, doc):
+  try:
+   document = minidom.parseString(doc)
+  except Exception as e:
+   print e
+   pass
+  else:
+   if document:
+    return document.documentElement
+  sys.stderr.write("No XML Data")
+  return False
 

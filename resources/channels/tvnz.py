@@ -186,7 +186,7 @@ class tvnz:
   item['fanart'] = self.xbmcitems.fanart
   item['urls'] = self._geturls(id, item['videoInfo']["Thumb"])
   item['playable'] = True
-  print item['urls']
+  item['videoInfo']['id'] = id
   return self.xbmcitems.resolve(item, self.channel)
 
  def _geturls(self, id, thumb):

@@ -15,10 +15,12 @@ class prime:
   self.programs['Weather'] = "The Weather News"
   self.xbmcitems = tools.xbmcItems(self.channel)
   for channel, description in self.programs.iteritems():
-   item = tools.xbmcItem()
-   item.channel = self.channel
-   item.info['Title'] = channel
-   item.info["Plot"] = description
-   item.info['FileName'] = self.urls['base'] + self.urls['file1'] + channel.upper() + self.urls['file2']
+   item = tools.xbmcItem(channel, self.channel)
+   item['videoInfo']['Title'] = channel
+   item['videoInfo']["Plot"] = description
+   item['videoInfo']['FileName'] = self.urls['base'] + self.urls['file1'] + channel.upper() + self.urls['file2']
+   item.update(self.xbmcitems.play(item, item['videoInfo']['FileName']))
    self.xbmcitems.items.append(item)
-  self.xbmcitems.addall()
+
+ def get(self):
+  return self.xbmcitems.items

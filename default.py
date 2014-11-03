@@ -186,7 +186,7 @@ if params:
   elif params["ch"][0] == "Prime":
    from resources.channels.prime import prime as primeclass
    prime = primeclass()
-   print prime
+   print prime.get()
   else:
    sys.stderr.write("Invalid Channel ID")
 else:

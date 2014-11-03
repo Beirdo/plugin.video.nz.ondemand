@@ -3,6 +3,8 @@
 import sys, re, os
 import resources.config as config
 import logging
+import urllib2
+
 logging.basicConfig(level=logging.DEBUG)
 settings = config.__settings__
 # import xbmc # http://xbmc.sourceforge.net/python-docs/xbmc.html
@@ -16,26 +18,53 @@ settings = config.__settings__
 
 logger = logging.getLogger(__name__)
 
+class Proxy:
+ def __init__(self):
+  self.proxy = settings.get("general", "proxy_host")
+  self.httpProxyPort = settings.get("general", "http_proxy_port")
+  self.socksProxyPort = settings.get("general", "socks_proxy_port")
+
+  self.httpProxyString = '%s:%s' % (self.proxy, self.httpProxyPort)
+  self.proxy_handler = urllib2.ProxyHandler({'http': self.httpProxyString})
+  self.opener = urllib2.build_opener(self.proxy_handler)
+  urllib2.install_opener(self.opener)
+
 class webpage:
  def __init__(self, url = "", agent = 'ps3', cookie = "", type = ""):
   self.doc = ""
   self.agent = agent
   self.cookie = cookie
   self.type = type
-  self.proxy = "103.16.180.117"
-  self.proxy_port = 443
-  self.socks_port = 465
+  self.redirUrl = None
   if url:
    self.url = url
    self.get(url)
 
  def get(self, url):
-  import urllib2
-  proxy_handler = urllib2.ProxyHandler({'http':'%s:%s'%(self.proxy,self.proxy_port)})
-  opener = urllib2.build_opener(proxy_handler)
-  urllib2.install_opener(opener)
+  proxy = Proxy()
+  urllib2.install_opener(proxy.opener)
   print "Requesting URL: %s" % (url)
   req = urllib2.Request(url)
+  req.add_header('User-agent', self.fullagent(self.agent))
+  if self.cookie:
+   req.add_header('Cookie', self.cookie)
+  if self.type:
+   req.add_header('content-type', self.type)
+  try:
+   response = urllib2.urlopen(req, timeout = 20)
+   self.doc = response.read()
+   self.redirUrl = response.geturl()
+   response.close()
+  except urllib2.HTTPError, err:
+   sys.stderr.write("urllib2.HTTPError requesting URL: %s" % (err.code))
+  else:
+   return self.doc
+
+ def post(self, url, body):
+  proxy = Proxy()
+  urllib2.install_opener(proxy.opener)
+  print "Posting URL: %s" % (url)
+  req = urllib2.Request(url, body)
   req.add_header('User-agent', self.fullagent(self.agent))
   if self.cookie:
    req.add_header('Cookie', self.cookie)
@@ -242,10 +271,10 @@ class xbmcItems:
    urlType = "http"
   elif url.startswith("rtmp"):
    urlType = "rtmp"
-  pg = webpage()
+  proxy = Proxy()
   listitem = { 'path' : url, 'type' : urlType, 'IsPlayable' : True, 
-               'proxy' : pg.proxy, 'proxyHttpPort' : pg.proxy_port,
-               'proxySocksPort' : pg.socks_port }
+               'proxy' : proxy.proxy, 'proxyHttpPort' : proxy.httpProxyPort,
+               'proxySocksPort' : proxy.socksProxyPort }
   item.update(listitem)
   if 'urls' in item:
    del item['urls']

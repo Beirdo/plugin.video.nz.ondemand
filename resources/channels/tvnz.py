@@ -1,11 +1,14 @@
-import re, sys, time
+import re, sys, time, urllib
 
 from xml.dom import minidom
 
 import resources.tools as tools
 import resources.config as config
 settings = config.__settings__
-from resources.tools import webpage
+from resources.tools import webpage, Proxy
+import pyamf
+from pyamf import remoting
+from pyamf.remoting.client import RemotingService
 
 class tvnz:
  def __init__(self):
@@ -16,10 +19,9 @@ class tvnz:
   self.urls['content'] = 'content'
   self.urls['page'] = 'ps3_xml_skin.xml'
   self.urls['search'] = 'search'
-  self.urls['play'] = 'ta_ent_smil_skin.smil?platform=PS3'
   self.urls['episodes'] = '_episodes_group'
   self.urls['extras'] = '_extras_group'
-  self.urls['playerKey'] = 'AQ~~,AAAA4FQHurk~,l-y-mylVvQmMeQArl3N6WrFttyxCZNYX'
+  self.urls['playerKey'] = 'AQ~~,AAAA4FQHurk~,l-y-mylVvQnoF42ofHcZUqUd1pmQEn6C'
   self.urls['publisherID'] = 963482467001
   
 # http://tvnz.co.nz/video
@@ -27,23 +29,8 @@ class tvnz:
   self.urls['experienceID'] = 1029272630001
   self.urls['playerID'] = str(self.urls['experienceID'])
   
-# http://tvnz.co.nz/ondemand/xl
-  self.urls['const_PS3'] = 'c533b8ff14118661efbd88d7be2520a0427d3b62'
-  self.urls['const2_PS3'] = '2823513dd61191c88af73bcacb66fd8e5d7d79bc'
-  self.urls['experienceID_PS3'] = 1257248093001
-  
-  self.urls['PS3'] = 'http://tvnz.co.nz/ondemand/xl'
-  #self.urls['PS3'] = 'http://tvnz.co.nz/stylesheets/ps3/entertainment/flash/ps3Flash.swf'
-  self.urls['contentID'] = 'http://tvnz.co.nz/ondemand/xl'
-  #self.urls['contentID'] = 'http://tvnz.co.nz/ondemand/xl&dynamicStreaming=true&isSlim=true&isSlim=1?smoothing=true&playerHeight=512&playerWidth=640&videoSmoothing=true'
   self.urls['swfUrl'] = 'http://admin.brightcove.com/viewer/us20120920.1336/federatedVideoUI/BrightcovePlayer.swf'
-  self.urls['swfUrl_PS3'] = 'http://admin.brightcove.com/viewer/us20120920.1336/federatedSlim/BrightcovePlayer.swf?uid=' + str(long(time.time() * 1000))
-  #self.urls['swfUrl_PS3'] = 'http://admin.brightcove.com/viewer/us20120920.1336/federatedSlim/BrightcovePlayer.swf'
-  #self.urls['swfUrl_PS3'] = 'http://c.brightcove.com/services/viewer/federated_f9?&playerWidth=640&playerHeight=512&dynamicStreaming=true&isSlim=true&playerKey=AQ%7E%7E%2CAAAA4FQHurk%7E%2Cl-y-mylVvQmMeQArl3N6WrFttyxCZNYX&playerID=1257248093001&videoSmoothing=true&isSlim=1?smoothing=true'
-  #self.urls['swfUrl_PS3'] = 'http://tvnz.co.nz/stylesheets/ps3/entertainment/flash/ps3Flash.swf'
 
-  self.PS3 = False
-  self.IOS = True
   self.bitrate_min = 400000
   self.xbmcitems = tools.xbmcItems(self.channel)
 
@@ -196,40 +183,33 @@ class tvnz:
  def play(self, id, encodedinfo):
   item = tools.xbmcItem(self.channel)
   item.infodecode(encodedinfo)
-  item.fanart = self.xbmcitems.fanart
-  item.urls = self._geturls(id, item['videoInfo']["Thumb"])
-  self.xbmcitems.resolve(item, self.channel)
+  item['fanart'] = self.xbmcitems.fanart
+  item['urls'] = self._geturls(id, item['videoInfo']["Thumb"])
+  item['playable'] = True
+  print item['urls']
+  return self.xbmcitems.resolve(item, self.channel)
 
  def _geturls(self, id, thumb):
+  qsdata = { 'width': 640, 'height': 410, 'flashID' : 'myExperience%s' % id,
+             'bgcolor': '#171e2a', 'wmode': 'opaque', 'isVid': True,
+             'playerID': self.urls['playerID'], 'isUI': True,
+             'publisherID': self.urls['publisherID'], 'dynamicStreaming': False,
+             'autoStart': False, '@videoPlayer': 'ref:%s' % id,
+             'debuggerID': '' }
+  self.swfUrl = self.GetSwfUrl(qsdata)
   urls = dict()
-  if self.PS3:
-   rtmpdata = self.get_clip_info_ps3(int(id))
-   for rendition in rtmpdata:
-    if self.IOS:
-     urls[rendition["encodingRate"]] = 'hls+' + rendition["defaultURL"]
-     #urls[rendition["encodingRate"]] = 'apple' + rendition["defaultURL"]
-    else:
-     urls[rendition["encodingRate"]] = rendition["defaultURL"] + ' swfVfy=true swfUrl=' + self.urls['swfUrl_PS3']
-  else:
-   #url = '%s/%s/%s' % (self.urls['base'], self.urls['content'], str(id) + '.xhtml')
-   print thumb
-   urlinfo = re.search('http://images.tvnz.co.nz/tvnz_(?:site_)?images/(.*?)/[0-9]+/[0-9]+/(.*?)(?:_E3)?.jpg', thumb)
-   if urlinfo:
-    url = '%s/%s/%s' % (self.urls['base'], urlinfo.group(1).replace("_", "-"), urlinfo.group(2)[len(urlinfo.group(1)) + 1:].replace("_", "-") + "-video-" + id)
-    print url
-    rtmpdata = self.get_clip_info(int(id), url)
-    if rtmpdata:
-     for rendition in rtmpdata:
-      urls[rendition["encodingRate"]] = rendition["defaultURL"] + ' swfUrl=' + self.urls['swfUrl_PS3']
+  urlinfo = re.search('http://images.tvnz.co.nz/tvnz_(?:site_)?images/(.*?)/[0-9]+/[0-9]+/(.*?)(?:_E3)?.jpg', thumb)
+  if urlinfo:
+   url = '%s/%s/%s' % (self.urls['base'], urlinfo.group(1).replace("_", "-"), urlinfo.group(2)[len(urlinfo.group(1)) + 1:].replace("_", "-") + "-video-" + id)
+   rtmpdata = self.get_clip_info(int(id), url)
+   if rtmpdata:
+    for rendition in rtmpdata:
+     urls[rendition["encodingRate"]] = rendition["defaultURL"] + ' swfUrl=' + self.swfUrl
   return urls
 
- def _printResponse(self, env, response):
+ def _printResponse(self, response):
   import pprint
   pp = pprint.PrettyPrinter()
-  print "pprint env:"
-  pp.pprint(env)
-  print "pprint env.bodies:"
-  pp.pprint(env.bodies)
   print "pprint response:"
   pp.pprint(response)
   print "pprint programmedContent:"
@@ -242,38 +222,28 @@ class tvnz:
   pp.pprint(response['programmedContent']['videoPlayer']['mediaDTO']['renditions'])
 
  def get_clip_info(self, contentID, url):
-  import pyamf
-  #from pyamf import register_class
-  from pyamf import remoting
-  import httplib
-  conn = httplib.HTTPConnection("c.brightcove.com")
-  pyamf.register_class(ViewerExperienceRequest, 'com.brightcove.experience.ViewerExperienceRequest')
-  pyamf.register_class(ContentOverride, 'com.brightcove.experience.ContentOverride')
-  viewer_exp_req = ViewerExperienceRequest(url, [ContentOverride(contentID)], self.urls['experienceID'], "")
-  env = remoting.Envelope(amfVersion = 3)
-  env.bodies.append(("/1",  remoting.Request(target = "com.brightcove.experience.ExperienceRuntimeFacade.getDataForExperience", body = [self.urls['const'], viewer_exp_req], envelope = env)))
-  conn.request("POST", "/services/messagebroker/amf?playerKey=" + self.urls['playerKey'], str(remoting.encode(env).read()), {'content-type': 'application/x-amf'})
-  #conn.request("POST", "/services/messagebroker/amf?playerId=" + self.urls['playerID'], str(remoting.encode(env).read()), {'content-type': 'application/x-amf'})
-  resp = conn.getresponse().read()
-  response = remoting.decode(resp).bodies[0][1].body
-  self._printResponse(env, response)
-  return response['programmedContent']['videoPlayer']['mediaDTO']['renditions']
+  serviceUrl = "http://c.brightcove.com/services/messagebroker/amf?playerId=" + self.urls['playerID']
+  serviceName = "com.brightcove.experience.ExperienceRuntimeFacade"
+  proxy = Proxy()
+  client = RemotingService(serviceUrl, amf_version=3,
+                           user_agent=webpage().fullagent('chrome'))
+  client.setProxy(proxy.httpProxyString, type='http')
+  service = client.getService(serviceName)
 
- def get_clip_info_ps3(self, contentID):
-  import pyamf
-  #from pyamf import register_class
-  from pyamf import remoting
-  import httplib
-  conn = httplib.HTTPConnection("c.brightcove.com")
-  env = remoting.Envelope(amfVersion = 3)
-  env.bodies.append(("/1",  remoting.Request(target = "com.brightcove.player.runtime.PlayerMediaFacade.findMediaByReferenceId", body = [self.urls['const2_PS3'], self.urls['experienceID_PS3'], str(contentID), self.urls['publisherID']], envelope = env)))
-  conn.request("POST", "/services/messagebroker/amf?playerKey=" + self.urls['playerKey'], str(remoting.encode(env).read()), {'content-type': 'application/x-amf'})
-  resp = conn.getresponse().read()
-  response = remoting.decode(resp).bodies[0][1].body
-  if self.IOS:
-   return response['IOSRenditions']
-  else:
-   return response['renditions']
+  pyamf.register_class(ViewerExperienceRequest,
+                       'com.brightcove.experience.ViewerExperienceRequest')
+  pyamf.register_class(ContentOverride,
+                       'com.brightcove.experience.ContentOverride')
+
+  content_override = ContentOverride(contentId=float("nan"),
+                                     contentRefId=str(contentID))
+  viewer_exp_req = ViewerExperienceRequest(url, [content_override],
+                                           int(self.urls['playerID']), "")
+
+  response = service.getDataForExperience(self.urls['const'], viewer_exp_req)
+
+  #self._printResponse(response)
+  return response['programmedContent']['videoPlayer']['mediaDTO']['renditions']
 
  def advert(self, chapter):
   advert = chapter.getElementsByTagName('ref')
@@ -290,44 +260,51 @@ class tvnz:
 
  def _duration(self, dur):
   # Durations are formatted like 0:43:15
-  minutes = 0
+  duration = 0
   parts = dur.split(":")
-  if len(parts) == 3:
-   try:
-    minutes = int(parts[0]) * 60 + int(parts[1])
-   except:
-    pass
-  return str(minutes)
+  for part in parts:
+   duration *= 60
+   duration += int(part)
+  return duration
 
  def _date(self, str):
-  import datetime
-  # Dates are formatted like 23 Jan 2010.
-  # Can't use datetime.strptime as that wasn't introduced until Python 2.6
-  formats = ["%d %b %y", "%d %B %y", "%d %b %Y", "%d %B %Y"]
-  for format in formats:
-   try:
-    return datetime.datetime.strptime(str, format).strftime("%d.%m.%Y")
-   except:
-    pass
-  return False
+#  import datetime
+#  # Dates are formatted like 23 Jan 2010.
+#  # Can't use datetime.strptime as that wasn't introduced until Python 2.6
+#  formats = ["%d %b %y", "%d %B %y", "%d %b %Y", "%d %B %Y"]
+#  for format in formats:
+#   try:
+#    return datetime.datetime.strptime(str, format).strftime("%d.%m.%Y")
+#   except:
+#    pass
+#  return False
+  return str
+
+ def GetSwfUrl(self, qsData):
+  url = "http://c.brightcove.com/services/viewer/federated_f9?&" + urllib.urlencode(qsData)
+  page = webpage(url, agent='chrome')
+  location = page.redirUrl
+  base = location.split(u"?",1)[0]
+  location = base.replace(u"BrightcoveBootloader.swf", u"federatedVideoUI/BrightcoveBootloader.swf")
+  return location
+
 
 class ContentOverride(object):
- #def __init__(self, contentId = 0, contentType = 0, target = 'videoList'):
- def __init__(self, contentId = 0, contentType = 0, target = 'videoPlayer'):
+ def __init__(self, contentId = 0, contentRefId = None, contentType = 0, target = 'videoPlayer'):
   self.contentType = contentType
   self.contentId = contentId
   self.target = target
   self.contentIds = None
-  self.contentRefId = None
+  self.contentRefId = contentRefId
   self.contentRefIds = None
-  self.featureId = float(0)
+  self.featuredId = float("nan")
   self.featuredRefId = None
 
 class ViewerExperienceRequest(object):
  def __init__(self, URL, contentOverrides, experienceId, playerKey, TTLToken = ''):
   self.TTLToken = TTLToken
   self.URL = URL
-  self.deliveryType = float(0)
+  self.deliveryType = float("nan")
   self.contentOverrides = contentOverrides
   #self.contentOverrides = []
   self.experienceId = experienceId

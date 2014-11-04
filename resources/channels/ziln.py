@@ -1,4 +1,4 @@
-import urllib, re, sys
+import urllib, re, sys, urllib
 from BeautifulSoup import BeautifulSoup, SoupStrainer, BeautifulStoneSoup
 
 import resources.tools as tools
@@ -53,7 +53,7 @@ class ziln:
    url = "%s/assets/php/slider.php?channel=%s" % (self.urls['base'], urlext)
   elif type == "search":
    folder = 0
-   url = "%s/search?search_keyword=%s" % (self.urls['base'], urlext.replace(" ", "+"))
+   url = "%s/search?search_keyword=%s" % (self.urls['base'], urllib.quote(urlext))
   page = webpage(url)
   if page.doc:
    if type == "channel" or type == "search":
@@ -99,10 +99,8 @@ class ziln:
   else:
    sys.stderr.write("Couldn't get page")
 
- def search(self):
-  results = self.xbmcitems.search()
-  if results:
-   return self.programmes("search", results)
+ def search(self, query):
+  return self.programmes("search", query)
 
  def play(self, index, channelNum):
   channel = channelMap.get(int(channelNum), "Ziln")

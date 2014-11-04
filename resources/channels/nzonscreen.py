@@ -1,3 +1,5 @@
+#! /usr/bin/python
+# vim:ts=1:sw=1:ai:et:si:sts=1:fileencoding=utf-8
 import urllib, re, sys
 from BeautifulSoup import BeautifulSoup, SoupStrainer, BeautifulStoneSoup
 
@@ -34,14 +36,10 @@ class nzonscreen:
  def index(self, filter = "/explore/"):
   filterarray = filter.strip('/').split('/')
   filterlevel = len(filterarray)
-  print filter
-  print filter.strip('/')
-  print str(filterlevel)
+  if filterlevel == 4 and filterarray[2] == 'az':
+   filterlevel += 1
   url = self.urls['base'] + filter
-  #sys.stderr.write("URL: " + url)
-  #sys.stderr.write('explore_filter_%s' % str(filterlevel))
-  page = webpage(url, 'chrome', 'nzos_html5=true')
-  #page = webpage(self.urls['base'])
+  page = webpage(url, agent='chrome', cookie='nzos_html5=true')
   if page.doc:
    #resources.tools.gethtmlpage("http://www.nzonscreen.com/html5/opt_in", "chrome", 1) # Get a cookie for this session to enable the HTML5 video tag
    div_tag = SoupStrainer('div')
@@ -53,18 +51,14 @@ class nzonscreen:
     links = sections.findAll('a')
     if len(links) > 0:
      for link in links:
- #     if link.string:
- #     sys.stderr.write(link.contents[0].string)
       item = tools.xbmcItem(self.channel)
       info = item['videoInfo']
       info["FileName"] = "%s?ch=%s&filter=%s" % (self.base, self.channel, urllib.quote(link["href"]))
-      #info["Title"] = link.contents[0].string.strip()
       if link.string:
        info["Title"] = link.string.strip()
       else:
        filterarray = link["href"].split('/')
        info["Title"] = filterarray[len(filterarray) - 1].capitalize()
- #     info["Thumb"] =
       self.xbmcitems.items.append(item)
      if filterlevel == 1:
       item = tools.xbmcItem(self.channel)
@@ -73,7 +67,6 @@ class nzonscreen:
       info["Title"] = "Search"
       self.xbmcitems.items.append(item)
     else:
- #    if filterarray[filterlevel] ==
      nav = html_divtag.find(attrs={'class' : 'nav_pagination'})
      if nav:
       pages = nav.findAll('a')
@@ -81,7 +74,6 @@ class nzonscreen:
        for page in pages:
         if page.string:
          lastpage = page.string.strip()
-         #url = page['href']
        for i in range(1, int(lastpage)):
         item = tools.xbmcItem(self.channel)
         info = item['videoInfo']
@@ -96,10 +88,10 @@ class nzonscreen:
 
  def page(self, filter, page):
   url = "%s%s?page=%s" % (self.urls['base'], filter, page)
-  page = webpage(url, 'chrome', 'nzos_html5=true')
-  if page.doc:
+  pg = webpage(url, agent='chrome', cookie='nzos_html5=true')
+  if pg.doc:
    div_tag = SoupStrainer('div')
-   html_divtag = BeautifulSoup(page.doc, parseOnlyThese = div_tag)
+   html_divtag = BeautifulSoup(pg.doc, parseOnlyThese = div_tag)
    results = html_divtag.find(attrs={'id' : 'filter_result_set'})
    if results:
     rows = results.findAll('tr')
@@ -111,7 +103,7 @@ class nzonscreen:
        item = tools.xbmcItem(self.channel)
        for cell in cells:
         if cell['class'] == 'image':
-	 src = cell.div.div.a.img['src']
+         src = cell.div.div.a.img['src']
          if not src.startswith("http://"):
           src = self.urls['base'] + src
          item['videoInfo']['Thumb'] = src
@@ -135,13 +127,48 @@ class nzonscreen:
   else:
    sys.stderr.write("page: No page.doc")
 
-# def search(self):
-#  import xbmc
-#  keyboard = xbmc.Keyboard("", "Search for a Video")
-#  #keyboard.setHiddenInput(False)
-#  keyboard.doModal()
-#  if keyboard.isConfirmed():
-#   return self.page("search", keyboard.getText())
+ def search(self, query, page=1):
+  query = urllib.quote(query)
+  url = '%s/search?utf8=✓&search_text=%s&search=search&page=%s' % (self.urls['base'], query, page)
+  pg = webpage(url, agent='chrome', cookie='nzos_html5=true')
+  if not pg.doc:
+   return []
+
+  div_tag = SoupStrainer('div')
+  html_divtag = BeautifulSoup(pg.doc, parseOnlyThese = div_tag)
+  results = html_divtag.find(attrs={'class' : 'hero_results'})
+  if not results:
+   return []
+
+  rows = results.findAll("div", attrs={'class' : re.compile(r'^(title|interview)$')})
+  for row in rows:
+   item = tools.xbmcItem(self.channel)
+   info = item['videoInfo']
+   src = row.a.img['src']
+   if not src.startswith("http://"):
+    src = self.urls['base'] + src
+   item['videoInfo']['Thumb'] = src
+   title = re.search("/title/(.*)", row.a['href'])
+   if not title:
+    title = re.search("/interviews/(.*)", row.a['href'])
+   item['videoInfo']['Title'] = item.unescape(row.p.a.contents[0])
+   if title:
+    item['videoInfo']["FileName"] = "%s?ch=%s&title=%s&info=%s" % (self.base, self.channel, title.group(1), item.infoencode())
+    item['playable'] = True
+   if not title or not title.group(1).endswith("/series"):
+    self.xbmcitems.items.append(item)
+
+  nav = html_divtag.find(attrs={'class' : 'nav_pagination'})
+  if nav:
+   nextPage = nav.find("a", attrs={'rel' : 'next'})
+   if nextPage:
+    item = tools.xbmcItem(self.channel)
+    info = item['videoInfo']
+    pagenum = nextPage.contents[0]
+    info["Title"] = "Next Page"
+    info["FileName"] = "%s?ch=%s&filter=search&q=%s&page=%s" % (self.base, self.channel, query, pagenum)
+    self.xbmcitems.items.append(item)
+  return self.xbmcitems.addall()
 
  def play(self, title, encodedinfo):
   item = tools.xbmcItem(self.channel)
@@ -190,7 +217,8 @@ class nzonscreen:
       if not bitrate in filesizes[vidFormat]:
        filesizes[vidFormat][bitrate] = 0
       allurls[vidFormat][bitrate].append(video[vidFormat][bitrate + '_res'])
-      filesizes[vidFormat][bitrate] += video[vidFormat][bitrate + '_res_mb']
+      if video[vidFormat][bitrate + '_res_mb']:
+       filesizes[vidFormat][bitrate] += video[vidFormat][bitrate + '_res_mb']
 
    for vidFormat, bitrates in allurls.iteritems():
     for bitrate, urls in bitrates.iteritems():

@@ -56,7 +56,7 @@ def tv3():
    elif params["cat"][0] == "show":
     ret = tv3.show(params["channel"][0], params["title"][0])
    elif params["cat"][0] == "search":
-    ret = tv3.search(params["channel"][0])
+    ret = tv3.search(params["channel"][0], params['q'][0])
    else:
     ret = tv3.episodes(params["channel"][0], params["cat"][0])
   elif params.get("id", "") != "":
@@ -88,7 +88,7 @@ def tvnz():
    tvnz.SHOW_DISTRIBUTORS(params["id"][0])
    ret = tools.addsorting(["label"], "tvshows")
   elif params["type"][0] == "search":
-   ret = tvnz.search()
+   ret = tvnz.search(params['q'][0])
  return ret
 
 # Website states "new website coming soon as of 11/2/2014
@@ -111,7 +111,7 @@ def ziln():
   if params["folder"][0] == "channels":
    ret = ziln.programmes("channel", "")
   elif params["folder"][0] == "search":
-   ret = ziln.search()
+   ret = ziln.search(params['q'][0])
  elif params.get("channel", "") != "":
   ret = ziln.programmes("video", params["channel"][0])
  elif params.get("video", "") != "":
@@ -123,15 +123,16 @@ def ziln():
 def nzonscreen():
  from resources.channels.nzonscreen import nzonscreen as nzonscreenclass
  nzonscreen = nzonscreenclass()
- if params.get("page", "") != "":
-  ret = nzonscreen.page(urllib.unquote(params["filter"][0]), params["page"][0])
- elif params.get("filter", "") != "":
+ if params.get("filter", "") != "":
   if params["filter"][0] == "search":
-   ret = nzonscreen.search()
+   if params.get("page", "") != "":
+    ret = nzonscreen.search(params['q'][0], params["page"][0])
+   else:
+    ret = nzonscreen.search(params['q'][0])
+  elif params.get("page", "") != "":
+   ret = nzonscreen.page(urllib.unquote(params["filter"][0]), params["page"][0])
   else:
    ret = nzonscreen.index(urllib.unquote(params["filter"][0]))
- elif params.get("bitrates", "") != "":
-  ret = nzonscreen.bitrates(params["bitrates"][0])
  elif params.get("title", "") != "":
   ret = nzonscreen.play(params["title"][0], params["info"][0])
  else:

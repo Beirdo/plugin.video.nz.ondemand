@@ -31,14 +31,15 @@ class Proxy:
 
 class webpage:
  def __init__(self, url = "", agent = 'ps3', cookie = "", type = ""):
-  self.doc = ""
   self.agent = agent
   self.cookie = cookie
   self.type = type
   self.redirUrl = None
   if url:
    self.url = url
-   self.get(url)
+   self.doc = self.get(url)
+  else:
+   self.doc = ""
 
  def get(self, url):
   proxy = Proxy()

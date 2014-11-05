@@ -2,6 +2,7 @@
 # mms://content.mediaworks.co.nz/tv/News/TOPSTORIES.300k
 
 import urllib, re, sys, time
+from datetime import date
 
 from BeautifulSoup import BeautifulSoup, SoupStrainer
 
@@ -27,7 +28,8 @@ class tv3:
   self.urls['categories'] = ['Must Watch', 'Expiring Soon', 'Recently Added']
   # TitleAZ
   self.urls['base'] = 'http://www.tv3.co.nz'
-  self.urls['base1'] = 'http://ondemand'
+  self.urls['base1'] = 'http://www'
+#  self.urls['base1'] = 'http://ondemand'
   self.urls['base2'] = 'co.nz'
   self.urls['rtmp1'] = 'rtmpe://nzcontent.mediaworks.co.nz:80'
   self.urls['rtmp2'] = '_definst_/mp4:'
@@ -103,7 +105,7 @@ class tv3:
   if page.doc:
    a_tag=SoupStrainer('div')
    html_atag = BeautifulSoup(page.doc, parseOnlyThese = a_tag)
-   programs = html_atag.findAll(attrs={"class": "grid_2"})
+   programs = html_atag.findAll(attrs={"class": re.compile(r'\bgrid_2\b')})
    if len(programs) > 0:
     for soup in programs:
      item = self._itemdiv(soup, channel)
@@ -154,53 +156,72 @@ class tv3:
   else:
    sys.stderr.write("atoz: Couldn't get videos webpage")
 
- def search(self, channel):
-  results = self.xbmcitems.search()
-  if results:
-   return self._search(results, "58")
-
- def _search(self, searchterm, catid): #Show video items from a normal TV3 webpage
-  page = webpage("%s/search/tabid/%s/Default.aspx?amq=%s" % (self._base_url('tv3'), catid, searchterm.replace(" ", "+")))
+ def search(self, channel, query):
+  url = "%s/OnDemand/ShowEpisodesDetail.aspx?MCat=%s" % (self.urls['base'], query)
+  page = webpage(url, agent="chrome")
   if page.doc:
+   soup = BeautifulSoup(page.doc)
+   title = soup.find('h3', attrs={'class' : 'showMcat'}).contents[0].strip()
+   print title
    a_tag=SoupStrainer('div')
    html_atag = BeautifulSoup(page.doc, parseOnlyThese = a_tag)
-   programs = html_atag.findAll(attrs={"class": "results"})
+   programs = html_atag.findAll('div', attrs={"class": re.compile(r'\blistWrapper\b')})
+   print programs
    if len(programs) > 0:
     for soup in programs:
-     self.xbmcitems.items.append(self._itemsearch(soup, "TV3"))
-     self.xbmcitems.items.append(self._itemsearch(soup, "Four"))
+     item = self._itemsearch(soup, title, "TV3")
+     if item:
+      self.xbmcitems.items.append(item)
+     item = self._itemsearch(soup, title, "Four")
+     if item:
+      self.xbmcitems.items.append(item)
     return self.xbmcitems.addall()
    else:
     sys.stderr.write("_search: Couldn't find any videos")
   else:
    sys.stderr.write("_search: Couldn't get videos webpage")
 
- def _itemsearch(self, soup, channel): # Scrape items from a table-style HTML page
+ def _itemsearch(self, soup, title, channel): # Scrape items from a table-style HTML page
   baseurl = self._base_url(channel)
   item = tools.xbmcItem(channel, self.channel)
-  title = soup.find("div", attrs={"class": 'catTitle'})
-  if title:
-   item['videoInfo']["TVShowTitle"] = title.a.string.strip()
-   href = re.match("%s/(.*?)/%s/([0-9]+)/%s/([0-9]+)/%s/([0-9]+)/" % (baseurl, self.urls["video1"], self.urls["video2"], self.urls["video3"]), title.a['href'])
-   if href:
-    image = soup.find("img")
-    if image:
-     item['videoInfo']["Thumb"] = image['src']
-    ep = soup.find("div", attrs={"class": 'epTitle'})
-    if ep:
-     if ep.a:
-      item['videoInfo'].update(self._seasonepisode(ep.a))
-    date = soup.find("div", attrs={"class": 'epDate'})
-  #  if date:
-  #   sys.stderr.write(date.span[1].string.strip())
-    item.titleplot()
-    item['playable'] = True
-    item['videoInfo']["FileName"] = "%s?ch=TV3&id=%s&provider=%s&info=%s" % (self.base, "%s,%s,%s,%s" % (href.group(1), href.group(2), href.group(3), href.group(4)), provider, item.infoencode())
-    return item
-   else:
-    sys.stderr.write("_itemsearch: No href")
-  else:
-   sys.stderr.write("_itemsearch: No title")
+  item['videoInfo']["TVShowTitle"] = title
+  url = soup.find('a', attrs={'class' : 'flt_l'})
+  if not url:
+   return {}
+  print url['href']
+  # http://www.tv3.co.nz/THE-BLACKLIST-Season-2-Ep-7/tabid/3692/articleID/104035/MCat/3823/Default.aspx
+
+  href = re.match("%s/(.*?)/%s/([0-9]+)/%s/([0-9]+)/%s/([0-9]+)/" % (baseurl, self.urls["video1"], self.urls["video2"], self.urls["video3"]), url['href'])
+  if href:
+   image = soup.find("img")
+   if image:
+    item['videoInfo']["Thumb"] = image['src']
+   ep = soup.find("div", attrs={"class": 'epDetail'})
+   if ep:
+    if ep.a:
+     item['videoInfo'].update(self._seasonepisode(ep.a))
+   synopsis = soup.find('div', attrs={'class' : 'epSynop'})
+   if synopsis:
+    item['videoInfo']['Plot'] = synopsis.p.contents[0].strip()
+   dateDetails = soup.findAll("div", attrs={'class' : 'epDetailData'})
+   for detail in dateDetails:
+    if detail.time:
+     epdate = detail.a.contents[0].strip()
+     epdate += " " + str(date.today().year)
+     item['videoInfo']['Date'] = epdate
+    else:
+     duration = detail.a.contents[0].strip()
+     parts = duration.split(":")
+     dur = 0
+     for part in parts:
+      dur *= 60
+      dur += int(part)
+     item['videoInfo']['duration'] = dur
+   item.titleplot()
+   item['playable'] = True
+   item['videoInfo']["FileName"] = "%s?ch=TV3&id=%s&channel=%s&info=%s" % (self.base, "%s,%s,%s,%s" % (href.group(1), href.group(2), href.group(3), href.group(4)), channel, item.infoencode())
+   return item
+  return None
 
  def _itemdiv(self, soup, channel): #Scrape items from a div-style HTML page
   baseurl = self.channels[channel]['base']
@@ -210,9 +231,9 @@ class tv3:
   if link:
    href = re.match("%s/(.*?)/%s/([0-9]+)/%s/([0-9]+)/%s/([0-9]+)/" % (baseurl, self.urls["video1"], self.urls["video2"], self.urls["video3"]), link['href'])
    if href:
-    showname = soup.find("div")
+    showname = soup.find("div", attrs={'class' : 'artTitle'})
     if showname:
-     title = showname.string.strip()
+     title = showname.a.contents[0].strip()
      if title != "":
       item['videoInfo']["TVShowTitle"] = title
       image = soup.find("img")
@@ -400,13 +421,13 @@ class tv3:
  def _seasonepisode(self, se): #Search a tag for season and episode numbers. If there's an episode and no season, assume that it's season 1
   if se:
    info = dict()
-   info["PlotOutline"] = se.string.strip()
-   season = re.search("(Cycle|Season) ([0-9]+)", se.string)
+   info["PlotOutline"] = se.contents[0].strip()
+   season = re.search("(Cycle|Season) ([0-9]+)", se.contents[0])
    seasonfound = 0
    if season:
     info["Season"] = int(season.group(2))
     seasonfound = 1
-   episode = re.search("Ep(|isode) ([0-9]+)", se.string)
+   episode = re.search("Ep(|isode) ([0-9]+)", se.contents[0])
    if episode:
     info["Episode"] = int(episode.group(2))
     if not seasonfound:

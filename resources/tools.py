@@ -310,11 +310,6 @@ class xbmcItems:
 #   xbmcplugin.setContent(handle = config.__id__, content = self.type)
 #  xbmcplugin.endOfDirectory(config.__id__)
 
- def search(self):
-  # want to return the parsed arg
-  # TODO
-  return False
-
  def quality(self, urls, channel): # Low, Medium, High
   if len(urls) == 0 or not channel:
    return False

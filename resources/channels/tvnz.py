@@ -9,6 +9,7 @@ from resources.tools import webpage, Proxy
 import pyamf
 from pyamf import remoting
 from pyamf.remoting.client import RemotingService
+from BeautifulSoup import BeautifulSoup
 
 class tvnz:
  def __init__(self):
@@ -18,6 +19,8 @@ class tvnz:
   self.urls['base'] = 'http://tvnz.co.nz'
   self.urls['content'] = 'content'
   self.urls['page'] = 'ps3_xml_skin.xml'
+  self.urls['search'] = 'search'
+  self.urls['searchpage'] = 'ta_ent_programme_result_module_skin.xml'
   self.urls['search'] = 'search'
   self.urls['episodes'] = '_episodes_group'
   self.urls['extras'] = '_extras_group'
@@ -72,16 +75,14 @@ class tvnz:
    sys.stderr.write("No XML Data")
   return self.xbmcitems.addall()
 
- def show(self, id, search = False):
-  if search:
-   import urllib
-   url = "%s/%s/%s?q=%s" % (self.urls['base'], self.urls['search'], self.urls['page'], urllib.quote_plus(id))
-  else:
-   url = self.url(id)
+ def show(self, id):
+  url = self.url(id)
   page = webpage(url)
+  print page.doc
   xml = self._xml(page.doc)
   if xml:
    for show in xml.getElementsByTagName('Show'):
+    print show.attributes['href'].value
     se = re.search('/content/(.*)_(episodes|extras)_group/ps3_xml_skin.xml', show.attributes["href"].value)
     if se:
      if se.group(2) == "episodes":
@@ -90,7 +91,7 @@ class tvnz:
       #channel = show.attributes["channel"].value
       item = tools.xbmcItem(self.channel)
       info = item['videoInfo']
-      info["FileName"] = "%s?ch=%s&type=singleshow&id=%s%s" % (self.base, self.channel, se.group(1), self.urls['episodes'])
+      info["FileName"] = "%s?ch=%s&type=singleshow&id=%s%s" % (self.base, self.channel, urllib.quote(se.group(1)), self.urls['episodes'])
       info["Title"] = show.attributes["title"].value
       info["TVShowTitle"] = info["Title"]
       #epinfo = self.firstepisode(se.group(1))
@@ -100,31 +101,65 @@ class tvnz:
   #self.xbmcitems.type = "tvshows"
   return self.xbmcitems.addall()
 
- def search(self):
-  results = self.xbmcitems.search()
-  if results:
-   self.show(results, True)
+ def search(self, query):
+  import urllib
+  qid = urllib.quote_plus(query)
+  qs = "&requiredfields=type:programme.site:tv&partialfields=programme-title:%s&fq=programme-title:%s&fq=type:programme&fq=site:tv&num=999" % (qid, qid)
+  url = "%s/%s/%s?q=%s%s" % (self.urls['base'], self.urls['search'], self.urls['searchpage'], qid, qs)
+  page = webpage(url)
+  soup = BeautifulSoup(page.doc)
+  if soup:
+   for show in soup.findAll('ul', attrs={'class' : 'showDetailsMain'}):
+    channel = show.find('li', attrs={'class' : "channel"}).contents[0].strip()
+    item = tools.xbmcItem(channel, self.channel)
+    info = item['videoInfo']
+    urlIn = show.a['href']
+    if not urlIn.startswith('http://'):
+     urlIn = self.urls['base'] + urlIn
+    info['urlIn'] = urlIn
+    m = re.match(r'^.*?-(\d+)', urlIn)
+    if not m:
+     continue
+    id = m.group(1)
+    info["Title"] = show.a.contents[0].strip()
+    info["Date"] = show.find('li', attrs={'class' : 'date'}).contents[0].strip()
+    info["TVShowTitle"] = info["Title"]
+    info["Plot"] = show.find('li', attrs={'class' : 'details'}).contents[0].strip()
+    info["FileName"] = "%s?ch=%s&id=%s&type=shows" % (self.base, self.channel, id)
+    self.xbmcitems.items.append(item)
+  return self.xbmcitems.addall()
 
  def episodes(self, id):
   page = webpage(self.url(id))
+  # <?xml version="1.0" encoding="UTF-8"?><!--urn:MEDIA:6120103:home-and-away-s2014a-ep6082-->
+  # http://tvnz.co.nz/home-and-away/s2014a-ep6082-video-6120103
+  m = re.match(r'^.*?<!--urn:MEDIA:(\d+):(.*?)-(s.*?-ep.*?)-->', page.doc)
+  if not m:
+   return []
+
+  url = "%s/%s/%s-video-%s" % (self.urls['base'], m.group(2), m.group(3),
+                               m.group(1))
+  print url
+  page = webpage(url, agent="chrome")
   if page.doc:
-   xml = self._xml(page.doc)
-   if xml:
-    #for ep in xml.getElementsByTagName('Episode').extend(xml.getElementsByTagName('Extra')):
-    #for ep in map(xml.getElementsByTagName, ['Episode', 'Extra']):
-    count = xml.getElementsByTagName('Episode').length
-    for ep in xml.getElementsByTagName('Episode'):
-     item = self._episode(ep)
+   soup = BeautifulSoup(page.doc)
+   if soup:
+    div = soup.find('div', attrs={'id' : 'slidefullepisodes'})
+    shows = div.findAll('li', attrs={'class' : re.compile(r'\bshowItem\b')})
+    for show in shows:
+     item = self._episode(show)
      if item:
       self.xbmcitems.items.append(item)
-    for ep in xml.getElementsByTagName('Extras'):
-     item = self._episode(ep)
-     if item:
-      self.xbmcitems.items.append(item)
-    #self.xbmcitems.sorting.append("DATE")
-    #self.xbmcitems.type = "episodes"
-    #self.xbmcitems.addall()
+
+    div = soup.find('div', attrs={'id' : 'slidevideoextras'})
+    if div:
+     shows = div.findAll('li', attrs={'class' : re.compile(r'\bshowItem\b')})
+     for show in shows:
+      item = self._episode(show)
+      if item:
+       self.xbmcitems.items.append(item)
     return self.xbmcitems.addall()
+  return []
 
 
  def firstepisode(self, id):
@@ -137,26 +172,24 @@ class tvnz:
      return item['videoInfo']
   return False
 
- def _episode(self, ep):
-  #se = re.search('/([0-9]+)/', ep.attributes["href"].value)
-  se = re.search('([0-9]+)', ep.attributes["href"].value)
+ def _episode(self, show):
+  se = re.search('-video-([0-9]+)', show.a['href'])
   if se:
-   item = tools.xbmcItem(self.channel)
+   channel = show.h5.contents[-1].strip()
+   item = tools.xbmcItem(channel, self.channel)
    link = se.group(1)
-   if ep.firstChild:
-    item['videoInfo']["Plot"] = ep.firstChild.data.strip()
-   title = ep.attributes["title"].value
-   subtitle = ep.attributes["sub-title"].value
-   if not subtitle:
-    titleparts = title.split(': ', 1) # Some Extras have the Title and Subtitle put into the title attribute separated by ': '
-    if len(titleparts) == 2:
-     title = titleparts[0]
-     subtitle = titleparts[1]
+   item['videoInfo']["Plot"] = show.div.p.a['title'].strip()
+   title = show.h5.a['title'].strip()
+   titleparts = title.split(': ', 1) # Some Extras have the Title and Subtitle put into the title attribute separated by ': '
+   if len(titleparts) == 2:
+    title = titleparts[0]
+    subtitle = titleparts[1]
+   else:
+    subtitle = ""
    sxe = ""
-   episodeparts = ep.attributes["episode"].value.split('|')
-   if len(episodeparts) == 3:
-    #see = re.search('Series ([0-9]+), Episode ([0-9]+)', episodeparts[0].strip()) # Need to catch "Episodes 7-8" as well as "Epsiode 7". Also need to catch episode without series
-    see = re.search('(?P<s>Se(ries|ason) ([0-9]+), )?Episodes? (?P<e>[0-9]+)(-(?P<e2>[0-9]+))?', episodeparts[0].strip())
+   if show.div.p.strong:
+    episodeparts = show.div.p.strong['title'].strip()
+    see = re.search('(Se(ries|ason) (?P<s>[0-9]+), )?Episodes? (?P<e>[0-9]+)(-(?P<e2>[0-9]+))?', episodeparts)
     if see:
      try:
       item['videoInfo']["Season"]  = int(see.group("s"))
@@ -165,31 +198,38 @@ class tvnz:
      item['videoInfo']["Episode"] = int(see.group("e"))
     sxe = item.sxe()
     if not sxe:
-      sxe = episodeparts[0].strip() # E.g. "Coming Up" or "Catch Up"
-    date = self._date(episodeparts[1].strip())
-    if date:
-     item['videoInfo']["Date"] = date
-    item['videoInfo']["Premiered"] = episodeparts[1].strip()
-    item['videoInfo']["Duration"] = self._duration(episodeparts[2].strip())
+     sxe = episodeparts # E.g. "Coming Up" or "Catch Up"
+   timediv = show.find('div', attrs={'class' : 'time'})
+   if timediv:
+    item['videoInfo']["Date"] = timediv.contents[0].strip()
+    item['videoInfo']["Duration"] = self._duration(timediv.span.contents[0].strip())
    item['videoInfo']["TVShowTitle"] = title
    item['videoInfo']["Title"] = " ".join((title, sxe, subtitle)) #subtitle
-   item['videoInfo']["Thumb"] = ep.attributes["src"].value
+   imgs = show.a.findAll('img')
+   for img in imgs:
+    if img.get('class', None) == 'play':
+     continue
+    imgurl = img['src']
+    if not imgurl.startswith('http://'):
+     imgurl = self.urls['base'] + imgurl
+    item['videoInfo']["Thumb"] = imgurl
+    break
    item['playable'] = True
    item['videoInfo']["FileName"] = "%s?ch=%s&id=%s&info=%s" % (self.base, self.channel, link, item.infoencode())
    return item
-  else:
-   sys.stderr.write("_episode: No se")
+  return None
 
  def play(self, id, encodedinfo):
   item = tools.xbmcItem(self.channel)
   item.infodecode(encodedinfo)
   item['fanart'] = self.xbmcitems.fanart
-  item['urls'] = self._geturls(id, item['videoInfo']["Thumb"])
+  item['urls'] = self._geturls(id, item['videoInfo']["Thumb"],
+                               item['videoInfo'].get('urlIn', None))
   item['playable'] = True
   item['videoInfo']['id'] = id
   return self.xbmcitems.resolve(item, self.channel)
 
- def _geturls(self, id, thumb):
+ def _geturls(self, id, thumb, urlIn=None):
   qsdata = { 'width': 640, 'height': 410, 'flashID' : 'myExperience%s' % id,
              'bgcolor': '#171e2a', 'wmode': 'opaque', 'isVid': True,
              'playerID': self.urls['playerID'], 'isUI': True,
@@ -198,13 +238,18 @@ class tvnz:
              'debuggerID': '' }
   self.swfUrl = self.GetSwfUrl(qsdata)
   urls = dict()
-  urlinfo = re.search('http://images.tvnz.co.nz/tvnz_(?:site_)?images/(.*?)/[0-9]+/[0-9]+/(.*?)(?:_E3)?.jpg', thumb)
-  if urlinfo:
-   url = '%s/%s/%s' % (self.urls['base'], urlinfo.group(1).replace("_", "-"), urlinfo.group(2)[len(urlinfo.group(1)) + 1:].replace("_", "-") + "-video-" + id)
-   rtmpdata = self.get_clip_info(int(id), url)
-   if rtmpdata:
-    for rendition in rtmpdata:
-     urls[rendition["encodingRate"]] = rendition["defaultURL"] + ' swfUrl=' + self.swfUrl
+  url = None
+  if urlIn:
+   url = urlIn
+  else:
+   urlinfo = re.search('http://images.tvnz.co.nz/tvnz_(?:site_)?images/(.*?)/[0-9]+/[0-9]+/(.*?)(?:_E3)?.jpg', thumb)
+   if urlinfo:
+    url = '%s/%s/%s' % (self.urls['base'], urlinfo.group(1).replace("_", "-"), urlinfo.group(2)[len(urlinfo.group(1)) + 1:].replace("_", "-") + "-video-" + id)
+  print url
+  rtmpdata = self.get_clip_info(int(id), url)
+  if rtmpdata:
+   for rendition in rtmpdata:
+    urls[rendition["encodingRate"]] = rendition["defaultURL"] + ' swfUrl=' + self.swfUrl
   return urls
 
  def _printResponse(self, response):

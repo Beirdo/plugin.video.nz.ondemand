@@ -49,6 +49,7 @@ settings = config.__settings__
 def tv3():
  from resources.channels.tv3 import tv3 as tv3class
  tv3 = tv3class()
+ ret = []
  if params.get("channel", "") != "":
   if params.get("cat", "") != "":
    if params["cat"][0] == "shows":
@@ -73,6 +74,7 @@ def tv3():
 def tvnz():
  from resources.channels.tvnz import tvnz as tvnzclass
  tvnz = tvnzclass()
+ ret = []
  if params.get("info", "") != "":
   ret = tvnz.play(params["id"][0], params["info"][0])
  elif not "type" in params:
@@ -107,6 +109,7 @@ def tvnz():
 def ziln():
  from resources.channels.ziln import ziln as zilnclass
  ziln = zilnclass()
+ ret = []
  if params.get("folder", "") != "":
   if params["folder"][0] == "channels":
    ret = ziln.programmes("channel", "")
@@ -123,6 +126,7 @@ def ziln():
 def nzonscreen():
  from resources.channels.nzonscreen import nzonscreen as nzonscreenclass
  nzonscreen = nzonscreenclass()
+ ret = []
  if params.get("filter", "") != "":
   if params["filter"][0] == "search":
    if params.get("page", "") != "":
@@ -142,6 +146,7 @@ def nzonscreen():
 def stuff():
  from resources.channels.stuff import stuff as stuffclass
  stuff = stuffclass()
+ ret = []
  if params.get("type", "") != "":
   ret = stuff.index(params["type"][0], params["id"][0])
  elif params.get("id", "") != "":
